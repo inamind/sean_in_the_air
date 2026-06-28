@@ -1,0 +1,1400 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>바람이 분다 - The Wind Blows</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #123047;
+      --panel: rgba(255, 255, 255, 0.88);
+      --panel-strong: rgba(255, 255, 255, 0.96);
+      --blue: #3d9be9;
+      --red: #ef5350;
+      --gold: #f9bf3b;
+      --green: #2f9d74;
+      --shadow: rgba(14, 48, 72, 0.24);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #87ceeb;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+      touch-action: none;
+    }
+
+    body {
+      min-width: 320px;
+    }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: #8ed7f8;
+    }
+
+    .hud {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: max(14px, env(safe-area-inset-left));
+      right: max(14px, env(safe-area-inset-right));
+      z-index: 5;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      gap: 12px;
+      pointer-events: none;
+      font-weight: 800;
+    }
+
+    .hudBox {
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 2px solid rgba(35, 83, 110, 0.16);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 8px 22px var(--shadow);
+      backdrop-filter: blur(6px);
+      font-size: clamp(15px, 1.8vw, 20px);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    #turnInfo {
+      justify-self: start;
+    }
+
+    #scoreInfo {
+      justify-self: center;
+      text-align: center;
+    }
+
+    #timeInfo {
+      justify-self: end;
+      text-align: right;
+    }
+
+    .touchControls {
+      position: fixed;
+      left: max(18px, env(safe-area-inset-left));
+      right: max(18px, env(safe-area-inset-right));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      z-index: 8;
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      pointer-events: none;
+    }
+
+    .pad {
+      display: flex;
+      gap: 18px;
+      pointer-events: auto;
+    }
+
+    .touchBtn {
+      width: clamp(118px, 12vw, 178px);
+      height: clamp(78px, 9vw, 112px);
+      border: 3px solid rgba(18, 48, 71, 0.18);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 8px 18px var(--shadow);
+      color: var(--ink);
+      font-size: clamp(30px, 4.4vw, 48px);
+      font-weight: 900;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+      user-select: none;
+    }
+
+    .touchBtn.active {
+      transform: translateY(3px);
+      background: #fff1a6;
+      box-shadow: 0 4px 10px var(--shadow);
+    }
+
+    .touchZone {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      z-index: 4;
+      display: none;
+      pointer-events: auto;
+    }
+
+    .touchZone.left {
+      left: 0;
+      width: 50vw;
+    }
+
+    .touchZone.right {
+      right: 0;
+      width: 50vw;
+    }
+
+    body.playing .touchZone {
+      display: block;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(83, 189, 240, 0.82), rgba(252, 222, 137, 0.7));
+    }
+
+    .panel {
+      width: min(760px, calc(100vw - 40px));
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      padding: clamp(18px, 3vw, 32px);
+      border: 3px solid rgba(25, 71, 104, 0.14);
+      border-radius: 8px;
+      background: var(--panel-strong);
+      box-shadow: 0 20px 50px rgba(9, 48, 76, 0.28);
+      text-align: center;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: clamp(42px, 7vw, 78px);
+      color: #14577a;
+    }
+
+    h2 {
+      margin-bottom: 16px;
+      font-size: clamp(28px, 4.5vw, 46px);
+      color: #14577a;
+    }
+
+    .subtitle {
+      margin: 12px 0 22px;
+      font-size: clamp(16px, 2.2vw, 22px);
+      font-weight: 700;
+    }
+
+    .menuGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .fieldGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      text-align: left;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    input {
+      width: 100%;
+      height: 48px;
+      border: 2px solid rgba(20, 87, 122, 0.26);
+      border-radius: 8px;
+      padding: 0 12px;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 800;
+      text-transform: uppercase;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(61, 155, 233, 0.16);
+    }
+
+    button {
+      min-height: 50px;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      background: #2279bb;
+      color: white;
+      box-shadow: 0 7px 0 #155584;
+      font: inherit;
+      font-size: clamp(16px, 2vw, 20px);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #35a475;
+      box-shadow: 0 7px 0 #1d7450;
+    }
+
+    button.choice {
+      min-height: 86px;
+      background: #ffffff;
+      color: var(--ink);
+      border: 3px solid rgba(20, 87, 122, 0.18);
+      box-shadow: 0 7px 0 rgba(20, 87, 122, 0.18);
+    }
+
+    button:active {
+      transform: translateY(5px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .scoreTable {
+      display: grid;
+      gap: 8px;
+      margin: 14px 0 18px;
+      text-align: left;
+    }
+
+    .scoreRow {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(123, 202, 239, 0.24);
+      font-weight: 800;
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: #426173;
+      font-size: clamp(14px, 1.8vw, 17px);
+      font-weight: 700;
+    }
+
+    .rotateNotice {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: #eaf8ff;
+      text-align: center;
+    }
+
+    .rotateNotice div {
+      max-width: 360px;
+      padding: 22px;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 12px 34px var(--shadow);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    @media (orientation: portrait) and (max-width: 900px) {
+      .rotateNotice {
+        display: grid;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .hud {
+        gap: 8px;
+      }
+
+      .hudBox {
+        padding: 7px 9px;
+        font-size: 13px;
+      }
+
+      .fieldGrid,
+      .menuGrid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="바람이 분다 게임 화면"></canvas>
+
+  <div class="hud" aria-live="polite">
+    <div id="turnInfo" class="hudBox">P1 준비</div>
+    <div id="scoreInfo" class="hudBox">점수 0</div>
+    <div id="timeInfo" class="hudBox">90초</div>
+  </div>
+
+  <div class="touchZone left" data-control="left" aria-hidden="true"></div>
+  <div class="touchZone right" data-control="right" aria-hidden="true"></div>
+
+  <div class="touchControls" aria-label="현재 플레이어 터치 조작 버튼">
+    <div class="pad">
+      <div class="touchBtn" data-control="left">←</div>
+      <div class="touchBtn" data-control="right">→</div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay"></div>
+
+  <div class="rotateNotice">
+    <div>10인치 태블릿 가로 화면에 맞춘 게임이에요.<br>기기를 가로로 돌려주세요.</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const overlay = document.getElementById("overlay");
+    const turnInfo = document.getElementById("turnInfo");
+    const scoreInfo = document.getElementById("scoreInfo");
+    const timeInfo = document.getElementById("timeInfo");
+
+    const WORLD = { width: 1280, height: 2600 };
+    const STAGE_TIME = 90;
+    const GRAVITY_WIND = -92;
+    const MOVE_SPEED = 245;
+    const DRAG = 0.982;
+    const SAFE_BRAKE = 0.88;
+    const PLAYER_RADIUS = 28;
+    const CHARACTER_DRAW_SIZE = 112;
+
+    const characterImages = {
+      balloon: loadCharacterImage("캐릭터1.jfif"),
+      kite: loadCharacterImage("캐릭터2.jfif")
+    };
+    const coinImages = {
+      gold: loadCharacterImage("동전_노란색.jfif"),
+      blue: loadCharacterImage("동전_파란색.jfif")
+    };
+
+    const characterCrops = {
+      balloon: { x: 0.22, y: 0.12, w: 0.56, h: 0.72 },
+      kite: { x: 0.22, y: 0.06, w: 0.58, h: 0.86 }
+    };
+    const coinCrops = {
+      gold: { x: 0.28, y: 0.08, w: 0.44, h: 0.82 },
+      blue: { x: 0.28, y: 0.08, w: 0.44, h: 0.82 }
+    };
+    const bgmTracks = ["game1.mp3", "game2.mp3", "game3.mp3"];
+
+    const state = {
+      screen: "title",
+      players: [
+        { id: 1, name: "SEAN", type: "balloon", color: "#ef5350", score: 0, time: 0, coins: 0, cleared: false },
+        { id: 2, name: "FRIEND", type: "kite", color: "#f7c943", score: 0, time: 0, coins: 0, cleared: false }
+      ],
+      playerCount: 2,
+      currentPlayerIndex: 0,
+      run: null,
+      cameraY: WORLD.height - 720,
+      lastTime: performance.now(),
+      keys: { left: false, right: false },
+      audioReady: false,
+      audio: null,
+      bgm: null,
+      currentBgmTrack: ""
+    };
+
+    const stage = {
+      safeWalls: [
+        { x: 220, y: 2200, w: 430, h: 46, type: "brick" },
+        { x: 720, y: 1840, w: 390, h: 56, type: "cloud" },
+        { x: 150, y: 1480, w: 420, h: 44, type: "plank" },
+        { x: 690, y: 1100, w: 440, h: 52, type: "stone" },
+        { x: 400, y: 760, w: 440, h: 58, type: "cloud" }
+      ],
+      coins: [
+        { x: 620, y: 2310, kind: "blue", value: 5 },
+        { x: 720, y: 2100, kind: "gold", value: 10 },
+        { x: 520, y: 1710, kind: "blue", value: 5 },
+        { x: 650, y: 1370, kind: "gold", value: 10 },
+        { x: 500, y: 960, kind: "blue", value: 5 },
+        { x: 820, y: 640, kind: "gold", value: 10 }
+      ],
+      goal: { x: 460, y: 245, w: 360, h: 92 }
+    };
+
+    function resize() {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+
+    function html(strings, ...values) {
+      return strings.map((s, i) => s + (values[i] ?? "")).join("");
+    }
+
+    function syncPlayingClass() {
+      document.body.classList.toggle("playing", state.screen === "play");
+    }
+
+    function loadCharacterImage(src) {
+      const img = new Image();
+      img.src = encodeURI(src);
+      return img;
+    }
+
+    function showTitle() {
+      state.screen = "title";
+      syncPlayingClass();
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h1>바람이 분다</h1>
+          <p class="subtitle">The Wind Blows · Stage 1</p>
+          <button id="startBtn">START</button>
+          <p class="hint">← → 또는 화면 아래 버튼으로 바람을 타고 골 벽까지 올라가세요.</p>
+        </section>
+      `;
+      document.getElementById("startBtn").addEventListener("click", () => {
+        unlockAudio();
+        showModeSelect();
+      });
+    }
+
+    function showModeSelect() {
+      state.screen = "mode";
+      syncPlayingClass();
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>인원 선택</h2>
+          <p class="subtitle">몇 명이 플레이할까요?</p>
+          <div class="menuGrid">
+            <button id="onePlayerBtn">1인 플레이</button>
+            <button id="twoPlayerBtn" class="secondary">2인 번갈아 플레이</button>
+          </div>
+        </section>
+      `;
+      document.getElementById("onePlayerBtn").addEventListener("click", () => showSetup(1));
+      document.getElementById("twoPlayerBtn").addEventListener("click", () => showSetup(2));
+    }
+
+    function showSetup(playerCount = state.playerCount) {
+      state.playerCount = playerCount;
+      state.screen = "setup";
+      syncPlayingClass();
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>${playerCount === 1 ? "1인 플레이" : "2인 번갈아 플레이"}</h2>
+          <p class="subtitle">${playerCount === 1 ? "Stage 1을 혼자 플레이합니다." : "Stage 1을 1P가 먼저, 2P가 이어서 플레이합니다."}</p>
+          <div class="fieldGrid">
+            <label>1P 이름
+              <input id="p1Name" maxlength="10" value="${state.players[0].name}" autocomplete="off">
+            </label>
+            ${playerCount === 2 ? html`
+              <label>2P 이름
+                <input id="p2Name" maxlength="10" value="${state.players[1].name}" autocomplete="off">
+              </label>
+            ` : ""}
+          </div>
+          <button id="playBtn" class="secondary">${playerCount === 1 ? "게임 시작" : "1P부터 시작"}</button>
+          <p class="hint">${playerCount === 1 ? "1P는 빨간 풍선으로 플레이합니다." : "1P는 빨간 풍선, 2P는 노란 연입니다. 둘 다 같은 Stage 1 코스를 달려요."}</p>
+        </section>
+      `;
+      document.getElementById("playBtn").addEventListener("click", () => {
+        state.players[0].name = cleanName(document.getElementById("p1Name").value, "P1");
+        if (state.playerCount === 2) {
+          state.players[1].name = cleanName(document.getElementById("p2Name").value, "P2");
+        }
+        state.currentPlayerIndex = 0;
+        activePlayers().forEach((p) => {
+          p.score = 0;
+          p.time = 0;
+          p.coins = 0;
+          p.cleared = false;
+        });
+        startCountdown();
+      });
+    }
+
+    function cleanName(value, fallback) {
+      const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+      return cleaned || fallback;
+    }
+
+    function activePlayers() {
+      return state.players.slice(0, state.playerCount);
+    }
+
+    function hasNextPlayer() {
+      return state.currentPlayerIndex < state.playerCount - 1;
+    }
+
+    function continueAfterTurn() {
+      if (hasNextPlayer()) {
+        state.currentPlayerIndex += 1;
+        startCountdown();
+      } else {
+        showResults();
+      }
+    }
+
+    function startCountdown() {
+      state.screen = "countdown";
+      syncPlayingClass();
+      playBgm();
+      let count = 3;
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>${currentPlayer().name} 차례</h2>
+          <p class="subtitle">Stage 1</p>
+          <h1 id="countNumber">${count}</h1>
+        </section>
+      `;
+      const timer = setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          document.getElementById("countNumber").textContent = count;
+          beep(420 + count * 80, 0.08, "square", 0.05);
+        } else {
+          clearInterval(timer);
+          beep(720, 0.16, "square", 0.07);
+          startRun();
+        }
+      }, 700);
+    }
+
+    function startRun() {
+      const player = currentPlayer();
+      state.screen = "play";
+      syncPlayingClass();
+      overlay.style.display = "none";
+      state.run = {
+        playerId: player.id,
+        x: WORLD.width / 2,
+        y: WORLD.height - 170,
+        vx: 0,
+        vy: -55,
+        timeLeft: STAGE_TIME,
+        elapsed: 0,
+        score: 0,
+        coins: stage.coins.map((coin) => ({ ...coin, collected: false, pop: 0 })),
+        popups: [],
+        safeResting: false,
+        clearTimer: 0
+      };
+      state.cameraY = WORLD.height - window.innerHeight;
+      state.keys.left = false;
+      state.keys.right = false;
+      updateHud();
+    }
+
+    function currentPlayer() {
+      return state.players[state.currentPlayerIndex];
+    }
+
+    function updateHud() {
+      const player = currentPlayer();
+      const run = state.run;
+      turnInfo.textContent = `${player.id}P ${player.name} · Stage 1`;
+      scoreInfo.textContent = `점수 ${run ? run.score : player.score}`;
+      timeInfo.textContent = `${Math.max(0, Math.ceil(run ? run.timeLeft : STAGE_TIME))}초`;
+      syncPlayingClass();
+    }
+
+    function worldToScreen(x, y) {
+      const scale = getScale();
+      return {
+        x: (x - WORLD.width / 2) * scale + window.innerWidth / 2,
+        y: (y - state.cameraY) * scale
+      };
+    }
+
+    function screenToWorldSize(size) {
+      return size * getScale();
+    }
+
+    function getScale() {
+      return Math.min(window.innerWidth / WORLD.width, window.innerHeight / 720);
+    }
+
+    function update(dt) {
+      if (state.screen !== "play" || !state.run) return;
+      const run = state.run;
+      const player = currentPlayer();
+
+      run.elapsed += dt;
+      run.timeLeft -= dt;
+      if (run.timeLeft <= 0) {
+        run.timeLeft = 0;
+        showTimeUp();
+        return;
+      }
+
+      const horizontal = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
+      run.vx += horizontal * MOVE_SPEED * 4.2 * dt;
+      run.vx *= Math.pow(DRAG, dt * 60);
+      run.vx = clamp(run.vx, -MOVE_SPEED, MOVE_SPEED);
+
+      const shelter = findShelter(run.x, run.y);
+      run.safeResting = Boolean(shelter && Math.abs(horizontal) < 0.2);
+      if (run.safeResting) {
+        run.vy *= Math.pow(SAFE_BRAKE, dt * 60);
+        run.vx *= Math.pow(0.92, dt * 60);
+        if (Math.abs(run.vy) < 14) run.vy = 0;
+      } else {
+        run.vy += GRAVITY_WIND * dt;
+        run.vy = Math.max(run.vy, -165);
+      }
+
+      run.x += run.vx * dt;
+      run.y += run.vy * dt;
+      run.x = clamp(run.x, PLAYER_RADIUS + 18, WORLD.width - PLAYER_RADIUS - 18);
+      run.y = clamp(run.y, 120, WORLD.height - PLAYER_RADIUS);
+
+      collectCoins(run, player);
+      checkGoal(run, player);
+      if (state.screen !== "play") return;
+      checkMissedGoal(run, player);
+      if (state.screen !== "play") return;
+
+      run.popups.forEach((popup) => {
+        popup.life -= dt;
+        popup.y -= 44 * dt;
+      });
+      run.popups = run.popups.filter((popup) => popup.life > 0);
+
+      const targetCamera = clamp(run.y - window.innerHeight / getScale() * 0.58, 0, WORLD.height - window.innerHeight / getScale());
+      state.cameraY += (targetCamera - state.cameraY) * Math.min(1, dt * 5.2);
+      updateHud();
+    }
+
+    function findShelter(x, y) {
+      return stage.safeWalls.find((wall) => {
+        const underObject = y > wall.y + wall.h - 6 && y < wall.y + wall.h + 92;
+        const withinWidth = x > wall.x - 22 && x < wall.x + wall.w + 22;
+        return underObject && withinWidth;
+      });
+    }
+
+    function collectCoins(run) {
+      run.coins.forEach((coin) => {
+        if (coin.collected) return;
+        const dist = Math.hypot(run.x - coin.x, run.y - coin.y);
+        if (dist < PLAYER_RADIUS + 22) {
+          coin.collected = true;
+          run.score += coin.value;
+          run.popups.push({ x: coin.x, y: coin.y - 24, text: `+${coin.value}`, life: 0.75 });
+          playCoinSound(coin.kind);
+        }
+      });
+    }
+
+    function checkGoal(run, player) {
+      const goal = stage.goal;
+      if (
+        run.x > goal.x &&
+        run.x < goal.x + goal.w &&
+        run.y > goal.y &&
+        run.y < goal.y + goal.h
+      ) {
+        player.score = run.score + Math.max(0, Math.ceil(run.timeLeft));
+        player.time = run.elapsed;
+        player.coins = run.coins.filter((coin) => coin.collected).length;
+        player.cleared = true;
+        showStageClear();
+      }
+    }
+
+    function checkMissedGoal(run, player) {
+      if (run.y <= 122) {
+        showMissedGoal(player);
+      }
+    }
+
+    function markZeroAndContinue(player) {
+      const run = state.run;
+      player.score = 0;
+      player.time = run ? run.elapsed : 0;
+      player.coins = 0;
+      player.cleared = false;
+      continueAfterTurn();
+    }
+
+    function showMissedGoal(player) {
+      state.screen = "missed";
+      syncPlayingClass();
+      state.keys.left = false;
+      state.keys.right = false;
+      beep(260, 0.13, "sawtooth", 0.045);
+      setTimeout(() => beep(180, 0.18, "sawtooth", 0.04), 110);
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>FAIL</h2>
+          <p class="subtitle">골을 지나쳤어요. Try Again?</p>
+          <div class="menuGrid">
+            <button id="missRetryBtn">Yes</button>
+            <button id="missZeroBtn" class="secondary">No, 0점 처리</button>
+          </div>
+          <p class="hint">${player.name} 차례를 다시 할지 선택하세요.</p>
+        </section>
+      `;
+      document.getElementById("missRetryBtn").addEventListener("click", startCountdown);
+      document.getElementById("missZeroBtn").addEventListener("click", () => markZeroAndContinue(player));
+    }
+
+    function showTimeUp() {
+      state.screen = "timeup";
+      syncPlayingClass();
+      beep(220, 0.16, "sawtooth", 0.045);
+      setTimeout(() => beep(160, 0.22, "sawtooth", 0.045), 120);
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>TIME UP!</h2>
+          <p class="subtitle">Try Again?</p>
+          <button id="retryBtn">같은 차례 다시 하기</button>
+        </section>
+      `;
+      document.getElementById("retryBtn").addEventListener("click", startCountdown);
+    }
+
+    function showStageClear() {
+      const player = currentPlayer();
+      state.screen = "clear";
+      syncPlayingClass();
+      fanfare();
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>STAGE CLEAR!</h2>
+          <p class="subtitle">${player.name}이 wig 구름을 쓰고 흔들흔들!</p>
+          <div class="scoreTable">
+            <div class="scoreRow"><span>획득 점수</span><strong>${player.score}점</strong></div>
+            <div class="scoreRow"><span>먹은 동전</span><strong>${player.coins}개</strong></div>
+            <div class="scoreRow"><span>클리어 시간</span><strong>${player.time.toFixed(1)}초</strong></div>
+          </div>
+          <button id="nextBtn" class="secondary">${hasNextPlayer() ? "2P 차례 시작" : "결과 보기"}</button>
+        </section>
+      `;
+      document.getElementById("nextBtn").addEventListener("click", continueAfterTurn);
+    }
+
+    function showResults() {
+      state.screen = "results";
+      syncPlayingClass();
+      pauseBgm();
+      const players = activePlayers();
+      const winner = getWinner();
+      saveBestScore(Math.max(...players.map((player) => player.score)));
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>Stage 1 결과</h2>
+          <p class="subtitle">${state.playerCount === 1 ? "플레이 완료!" : winner ? `${winner.name} 승리 V포즈!` : "둘 다 멋진 플레이!"}</p>
+          <div class="scoreTable">
+            ${players.map((player) => html`
+              <div class="scoreRow"><span>${player.id}P ${player.name}</span><strong>${formatPlayerResult(player)}</strong></div>
+            `).join("")}
+            <div class="scoreRow"><span>최고 점수</span><strong>${getBestScore()}점</strong></div>
+          </div>
+          <div class="menuGrid">
+            <button id="againBtn">다시 하기</button>
+            <button id="namesBtn" class="secondary">이름 바꾸기</button>
+          </div>
+        </section>
+      `;
+      document.getElementById("againBtn").addEventListener("click", () => {
+        state.currentPlayerIndex = 0;
+        activePlayers().forEach((p) => {
+          p.score = 0;
+          p.time = 0;
+          p.coins = 0;
+          p.cleared = false;
+        });
+        startCountdown();
+      });
+      document.getElementById("namesBtn").addEventListener("click", showSetup);
+    }
+
+    function formatPlayerResult(player) {
+      return player.cleared ? `${player.score}점 · ${player.time.toFixed(1)}초` : "0점 · 실패";
+    }
+
+    function getWinner() {
+      if (state.playerCount === 1) return null;
+      const [p1, p2] = activePlayers();
+      if (!p1.cleared || !p2.cleared) return null;
+      if (p1.score !== p2.score) return p1.score > p2.score ? p1 : p2;
+      if (Math.abs(p1.time - p2.time) > 0.05) return p1.time < p2.time ? p1 : p2;
+      return null;
+    }
+
+    function saveBestScore(score) {
+      const best = getBestScore();
+      if (score > best) localStorage.setItem("windBlowsBestStage1", String(score));
+    }
+
+    function getBestScore() {
+      return Number(localStorage.getItem("windBlowsBestStage1") || 0);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      drawSky();
+      drawWorld();
+      if (state.run) drawPlayer();
+      drawForeground();
+    }
+
+    function drawSky() {
+      const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
+      gradient.addColorStop(0, "#6fc4f1");
+      gradient.addColorStop(0.55, "#b9ecff");
+      gradient.addColorStop(1, "#fff2b1");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      const cloudOffset = -state.cameraY * 0.18;
+      for (let i = 0; i < 12; i += 1) {
+        const x = (i * 210 + 90) % (window.innerWidth + 260) - 120;
+        const y = ((i * 113 + cloudOffset) % (window.innerHeight + 180)) - 70;
+        drawCloud(x, y, 0.75 + (i % 3) * 0.16);
+      }
+    }
+
+    function drawCloud(x, y, scale) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.78)";
+      ellipse(-32, 10, 42, 22);
+      ellipse(2, 0, 52, 28);
+      ellipse(40, 12, 48, 22);
+      ctx.restore();
+    }
+
+    function drawWorld() {
+      drawStartBench();
+      stage.safeWalls.forEach(drawSafeWall);
+      stage.coins.forEach((coin, index) => drawCoin(coin, index));
+      drawGoal();
+    }
+
+    function drawStartBench() {
+      const p = worldToScreen(WORLD.width / 2, WORLD.height - 85);
+      const scale = getScale();
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "#87583b";
+      roundRect(-180, 12, 360, 24, 6);
+      roundRect(-150, 48, 300, 18, 5);
+      ctx.fillStyle = "#65432d";
+      roundRect(-132, 66, 18, 70, 5);
+      roundRect(114, 66, 18, 70, 5);
+      ctx.restore();
+    }
+
+    function drawSafeWall(wall, index) {
+      const p = worldToScreen(wall.x, wall.y);
+      const scale = getScale();
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+      if (wall.type === "cloud") {
+        drawCloudObstacle(wall, index);
+      } else if (wall.type === "brick") {
+        drawBrickObstacle(wall);
+      } else if (wall.type === "plank") {
+        drawPlankObstacle(wall);
+      } else {
+        drawStoneObstacle(wall);
+      }
+      ctx.restore();
+    }
+
+    function drawCloudObstacle(wall, index) {
+      const float = Math.sin(performance.now() / 520 + index) * 2;
+      ctx.save();
+      ctx.translate(0, float);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+      ellipse(wall.w * 0.18, wall.h * 0.48, wall.w * 0.22, wall.h * 0.58);
+      ellipse(wall.w * 0.38, wall.h * 0.28, wall.w * 0.25, wall.h * 0.68);
+      ellipse(wall.w * 0.62, wall.h * 0.3, wall.w * 0.26, wall.h * 0.7);
+      ellipse(wall.w * 0.82, wall.h * 0.5, wall.w * 0.22, wall.h * 0.55);
+      ctx.fillStyle = "rgba(230, 247, 255, 0.94)";
+      ctx.strokeStyle = "rgba(155, 203, 225, 0.42)";
+      ctx.lineWidth = 5;
+      roundRect(22, wall.h * 0.45, wall.w - 44, wall.h * 0.52, 22, true);
+      ctx.restore();
+    }
+
+    function drawBrickObstacle(wall) {
+      ctx.fillStyle = "#d97745";
+      ctx.strokeStyle = "#9b4b28";
+      ctx.lineWidth = 5;
+      roundRect(0, 0, wall.w, wall.h, 8, true);
+
+      ctx.strokeStyle = "rgba(126, 58, 27, 0.55)";
+      ctx.lineWidth = 3;
+      const rowH = wall.h / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, rowH);
+      ctx.lineTo(wall.w, rowH);
+      for (let x = 74; x < wall.w; x += 92) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rowH);
+        ctx.moveTo(x - 42, rowH);
+        ctx.lineTo(x - 42, wall.h);
+      }
+      ctx.stroke();
+    }
+
+    function drawPlankObstacle(wall) {
+      ctx.fillStyle = "#9a613c";
+      ctx.strokeStyle = "#6b3d25";
+      ctx.lineWidth = 5;
+      roundRect(0, 0, wall.w, wall.h, 8, true);
+      ctx.fillStyle = "rgba(255, 207, 135, 0.16)";
+      roundRect(18, 9, wall.w - 36, 8, 5);
+      ctx.strokeStyle = "rgba(84, 46, 27, 0.42)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(24, wall.h * 0.62);
+      ctx.bezierCurveTo(wall.w * 0.3, wall.h * 0.42, wall.w * 0.62, wall.h * 0.74, wall.w - 28, wall.h * 0.54);
+      ctx.stroke();
+    }
+
+    function drawStoneObstacle(wall) {
+      ctx.fillStyle = "#a8b5bd";
+      ctx.strokeStyle = "#687983";
+      ctx.lineWidth = 5;
+      roundRect(0, 0, wall.w, wall.h, 10, true);
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
+      roundRect(20, 10, wall.w * 0.3, 10, 7);
+      ctx.strokeStyle = "rgba(83,99,108,0.36)";
+      ctx.lineWidth = 3;
+      for (let x = 70; x < wall.w; x += 105) {
+        ctx.beginPath();
+        ctx.moveTo(x, 10);
+        ctx.lineTo(x + 18, wall.h - 8);
+        ctx.stroke();
+      }
+    }
+
+    function drawCoin(coin, index) {
+      const runCoin = state.run?.coins[index];
+      if (runCoin?.collected) return;
+      const p = worldToScreen(coin.x, coin.y);
+      const pulse = Math.sin(performance.now() / 230 + index) * 0.08 + 1;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      const image = coinImages[coin.kind];
+      if (image.complete && image.naturalWidth) {
+        const crop = coinCrops[coin.kind];
+        const sx = image.naturalWidth * crop.x;
+        const sy = image.naturalHeight * crop.y;
+        const sw = image.naturalWidth * crop.w;
+        const sh = image.naturalHeight * crop.h;
+        const size = screenToWorldSize(52 * pulse);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 0.46, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(image, sx, sy, sw, sh, -size / 2, -size / 2, size, size);
+        ctx.restore();
+      } else {
+        const r = screenToWorldSize(18 * pulse);
+        ctx.fillStyle = coin.kind === "gold" ? "#f6bd2d" : "#3e9fe6";
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.48)";
+        ellipse(-r * 0.28, -r * 0.25, r * 0.28, r * 0.18);
+      }
+      ctx.restore();
+    }
+
+    function drawGoal() {
+      const goal = stage.goal;
+      const p = worldToScreen(goal.x, goal.y);
+      const scale = getScale();
+      const shimmer = Math.sin(performance.now() / 180) * 0.5 + 0.5;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = `rgba(255, ${210 + shimmer * 35}, 60, 0.94)`;
+      ctx.strokeStyle = "#fff7a8";
+      ctx.lineWidth = 8;
+      roundRect(0, 0, goal.w, goal.h, 18, true);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 34px Trebuchet MS, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("GOAL", goal.w / 2, goal.h / 2);
+      for (let i = 0; i < 9; i += 1) {
+        const sx = 24 + i * 39;
+        const sy = 8 + Math.sin(performance.now() / 200 + i) * 8;
+        drawStar(sx, sy, 9);
+      }
+      ctx.restore();
+    }
+
+    function drawPlayer() {
+      const run = state.run;
+      const player = currentPlayer();
+      const p = worldToScreen(run.x, run.y);
+      const scale = getScale();
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+
+      drawCharacter(player, run);
+
+      ctx.fillStyle = "rgba(18,48,71,0.84)";
+      ctx.font = "900 24px Trebuchet MS, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(player.name, 0, 68);
+
+      if (run.safeResting) {
+        ctx.fillStyle = "rgba(47,157,116,0.9)";
+        ctx.font = "900 19px Trebuchet MS, Arial";
+        ctx.fillText("쉬는 중", 0, 98);
+      }
+      ctx.restore();
+
+      run.popups.forEach((popup) => {
+        const pp = worldToScreen(popup.x, popup.y);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, popup.life / 0.75);
+        ctx.fillStyle = "#14577a";
+        ctx.font = "900 26px Trebuchet MS, Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(popup.text, pp.x, pp.y);
+        ctx.restore();
+      });
+    }
+
+    function drawCharacter(player, run) {
+      const image = characterImages[player.type];
+      if (!image || !image.complete || !image.naturalWidth) {
+        if (player.type === "balloon") {
+          drawBalloon(player, run);
+        } else {
+          drawKite(player, run);
+        }
+        return;
+      }
+
+      const bob = Math.sin(performance.now() / 240) * 2.4;
+      const size = CHARACTER_DRAW_SIZE;
+      const crop = characterCrops[player.type];
+      const sx = image.naturalWidth * crop.x;
+      const sy = image.naturalHeight * crop.y;
+      const sw = image.naturalWidth * crop.w;
+      const sh = image.naturalHeight * crop.h;
+      ctx.save();
+      ctx.translate(0, bob);
+      ctx.rotate(player.type === "kite" ? Math.sin(performance.now() / 260) * 0.045 : 0);
+      ctx.fillStyle = "rgba(18,48,71,0.16)";
+      ellipse(0, 49, 40, 9);
+      ctx.fillStyle = "rgba(255,255,255,0.72)";
+      ctx.strokeStyle = player.type === "balloon" ? "#b92e36" : "#bd8c13";
+      ctx.lineWidth = 4;
+      roundRect(-size / 2, -size / 2 - 8, size, size, 18, true);
+      ctx.clip();
+      ctx.drawImage(image, sx, sy, sw, sh, -size / 2, -size / 2 - 8, size, size);
+      ctx.restore();
+    }
+
+    function drawBalloon(player) {
+      ctx.fillStyle = player.color;
+      ctx.strokeStyle = "#b92e36";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(0, -4, PLAYER_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.58)";
+      ellipse(-10, -16, 8, 12);
+      drawFace(0, -4);
+      ctx.fillStyle = "#b92e36";
+      ctx.beginPath();
+      ctx.moveTo(-7, 25);
+      ctx.lineTo(7, 25);
+      ctx.lineTo(0, 36);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawKite(player) {
+      ctx.save();
+      ctx.rotate(Math.sin(performance.now() / 260) * 0.08);
+      ctx.fillStyle = player.color;
+      ctx.strokeStyle = "#bd8c13";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(0, -38);
+      ctx.lineTo(36, -4);
+      ctx.lineTo(0, 34);
+      ctx.lineTo(-36, -4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(189,140,19,0.75)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, -38);
+      ctx.lineTo(0, 34);
+      ctx.moveTo(-36, -4);
+      ctx.lineTo(36, -4);
+      ctx.stroke();
+      drawFace(0, -5);
+      ctx.restore();
+      ctx.strokeStyle = "#8a6520";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 32);
+      ctx.quadraticCurveTo(-16, 54, 10, 76);
+      ctx.stroke();
+    }
+
+    function drawFace(x, y) {
+      ctx.fillStyle = "#123047";
+      ctx.beginPath();
+      ctx.arc(x - 9, y - 4, 3.5, 0, Math.PI * 2);
+      ctx.arc(x + 9, y - 4, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#123047";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y + 5, 10, 0.1, Math.PI - 0.1);
+      ctx.stroke();
+    }
+
+    function drawForeground() {
+      const run = state.run;
+      if (state.screen === "play" && run) {
+        const arrowX = window.innerWidth - 86;
+        const arrowY = window.innerHeight - 130;
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.72)";
+        ctx.strokeStyle = "rgba(18,48,71,0.16)";
+        ctx.lineWidth = 2;
+        roundRect(arrowX - 38, arrowY - 46, 76, 92, 8, true);
+        ctx.fillStyle = "#2279bb";
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY - 30);
+        ctx.lineTo(arrowX - 23, arrowY + 6);
+        ctx.lineTo(arrowX - 8, arrowY + 6);
+        ctx.lineTo(arrowX - 8, arrowY + 31);
+        ctx.lineTo(arrowX + 8, arrowY + 31);
+        ctx.lineTo(arrowX + 8, arrowY + 6);
+        ctx.lineTo(arrowX + 23, arrowY + 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function loop(now) {
+      const dt = Math.min(0.033, (now - state.lastTime) / 1000);
+      state.lastTime = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function roundRect(x, y, w, h, r, stroke = false) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+      if (stroke) ctx.stroke();
+    }
+
+    function ellipse(x, y, rx, ry) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawStar(x, y, radius) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      for (let i = 0; i < 10; i += 1) {
+        const angle = -Math.PI / 2 + i * Math.PI / 5;
+        const r = i % 2 === 0 ? radius : radius * 0.45;
+        ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function unlockAudio() {
+      if (!state.audioReady) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          state.audio = new AudioContext();
+          state.audioReady = true;
+        }
+      }
+    }
+
+    function pickRandomBgmTrack() {
+      const candidates = bgmTracks.filter((track) => track !== state.currentBgmTrack);
+      const pool = candidates.length ? candidates : bgmTracks;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    function prepareNewBgm() {
+      const track = pickRandomBgmTrack();
+      if (state.bgm) {
+        state.bgm.pause();
+        state.bgm.currentTime = 0;
+      }
+      state.currentBgmTrack = track;
+      state.bgm = new Audio(track);
+      state.bgm.loop = true;
+      state.bgm.volume = 0.234;
+      state.bgm.preload = "auto";
+    }
+
+    function playBgm() {
+      unlockAudio();
+      prepareNewBgm();
+      if (state.audio?.state === "suspended") {
+        state.audio.resume();
+      }
+      if (!state.bgm) return;
+      state.bgm.play().catch(() => {
+        // Some browsers require the next direct tap before music can start.
+      });
+    }
+
+    function pauseBgm() {
+      if (state.bgm) state.bgm.pause();
+    }
+
+    function beep(freq, duration, type = "sine", volume = 0.04) {
+      if (!state.audioReady || !state.audio) return;
+      const audio = state.audio;
+      if (audio.state === "suspended") audio.resume();
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(volume, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audio.destination);
+      osc.start();
+      osc.stop(audio.currentTime + duration);
+    }
+
+    function playCoinSound(kind) {
+      const base = kind === "gold" ? 920 : 760;
+      beep(base, 0.09, "triangle", 0.208);
+      setTimeout(() => beep(base * 1.34, 0.08, "triangle", 0.182), 55);
+      setTimeout(() => beep(base * 1.68, 0.07, "square", 0.104), 112);
+    }
+
+    function fanfare() {
+      [523, 659, 784, 1046].forEach((note, index) => {
+        setTimeout(() => beep(note, 0.12, "square", 0.055), index * 95);
+      });
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
+        state.keys.left = true;
+        event.preventDefault();
+      }
+      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
+        state.keys.right = true;
+        event.preventDefault();
+      }
+      if (event.key === "Enter" && state.screen === "title") {
+        unlockAudio();
+        showModeSelect();
+      }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") state.keys.left = false;
+      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") state.keys.right = false;
+    });
+
+    function setTouchControl(control, pressed) {
+      unlockAudio();
+      state.keys[control] = pressed;
+      document.querySelectorAll(`[data-control="${control}"]`).forEach((element) => {
+        element.classList.toggle("active", pressed);
+      });
+    }
+
+    document.querySelectorAll(".touchBtn, .touchZone").forEach((target) => {
+      const control = target.dataset.control;
+      const setPressed = (pressed) => {
+        if (state.screen !== "play" && target.classList.contains("touchZone")) return;
+        setTouchControl(control, pressed);
+      };
+      target.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        target.setPointerCapture(event.pointerId);
+        setPressed(true);
+      });
+      target.addEventListener("pointerup", () => setPressed(false));
+      target.addEventListener("pointercancel", () => setPressed(false));
+      target.addEventListener("pointerleave", () => setPressed(false));
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        state.keys.left = false;
+        state.keys.right = false;
+      }
+    });
+
+    showTitle();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
