@@ -371,8 +371,7 @@
     const timeInfo = document.getElementById("timeInfo");
 
     const WORLD = { width: 1280, height: 2600 };
-    const STAGE_TIME = 90;
-    const GRAVITY_WIND = -92;
+    const BASE_WIND = 92;
     const MOVE_SPEED = 245;
     const DRAG = 0.982;
     const SAFE_BRAKE = 0.88;
@@ -401,11 +400,12 @@
     const state = {
       screen: "title",
       players: [
-        { id: 1, name: "SEAN", type: "balloon", color: "#ef5350", score: 0, time: 0, coins: 0, cleared: false },
-        { id: 2, name: "FRIEND", type: "kite", color: "#f7c943", score: 0, time: 0, coins: 0, cleared: false }
+        { id: 1, name: "SEAN", type: "balloon", color: "#ef5350", score: 0, time: 0, coins: 0, cleared: false, lives: 5, stageResults: [] },
+        { id: 2, name: "FRIEND", type: "kite", color: "#f7c943", score: 0, time: 0, coins: 0, cleared: false, lives: 5, stageResults: [] }
       ],
       playerCount: 2,
       currentPlayerIndex: 0,
+      currentStageIndex: 0,
       run: null,
       cameraY: WORLD.height - 720,
       lastTime: performance.now(),
@@ -416,24 +416,148 @@
       currentBgmTrack: ""
     };
 
-    const stage = {
-      safeWalls: [
-        { x: 220, y: 2200, w: 430, h: 46, type: "brick" },
-        { x: 720, y: 1840, w: 390, h: 56, type: "cloud" },
-        { x: 150, y: 1480, w: 420, h: 44, type: "plank" },
-        { x: 690, y: 1100, w: 440, h: 52, type: "stone" },
-        { x: 400, y: 760, w: 440, h: 58, type: "cloud" }
-      ],
-      coins: [
-        { x: 620, y: 2310, kind: "blue", value: 5 },
-        { x: 720, y: 2100, kind: "gold", value: 10 },
-        { x: 520, y: 1710, kind: "blue", value: 5 },
-        { x: 650, y: 1370, kind: "gold", value: 10 },
-        { x: 500, y: 960, kind: "blue", value: 5 },
-        { x: 820, y: 640, kind: "gold", value: 10 }
-      ],
-      goal: { x: 460, y: 245, w: 360, h: 92 }
-    };
+    const stages = [
+      {
+        number: 1,
+        name: "낮 하늘",
+        timeLimit: 90,
+        sky: ["#6fc4f1", "#b9ecff", "#fff2b1"],
+        windPattern: "up",
+        safeWalls: [
+          { x: 220, y: 2200, w: 430, h: 46, type: "brick" },
+          { x: 720, y: 1840, w: 390, h: 56, type: "cloud" },
+          { x: 150, y: 1480, w: 420, h: 44, type: "plank" },
+          { x: 690, y: 1100, w: 440, h: 52, type: "stone" },
+          { x: 400, y: 760, w: 440, h: 58, type: "cloud" }
+        ],
+        spikes: [],
+        coins: [
+          { x: 620, y: 2310, kind: "blue", value: 5 },
+          { x: 720, y: 2100, kind: "gold", value: 10 },
+          { x: 520, y: 1710, kind: "blue", value: 5 },
+          { x: 650, y: 1370, kind: "gold", value: 10 },
+          { x: 500, y: 960, kind: "blue", value: 5 },
+          { x: 820, y: 640, kind: "gold", value: 10 }
+        ],
+        goal: { x: 460, y: 245, w: 360, h: 92 }
+      },
+      {
+        number: 2,
+        name: "구름 사이",
+        timeLimit: 90,
+        sky: ["#79c9f3", "#d7f5ff", "#f8fbff"],
+        windPattern: "up",
+        safeWalls: [
+          { x: 620, y: 2220, w: 390, h: 54, type: "cloud" },
+          { x: 150, y: 1880, w: 420, h: 46, type: "brick" },
+          { x: 730, y: 1510, w: 380, h: 44, type: "plank" },
+          { x: 260, y: 1120, w: 420, h: 54, type: "cloud" },
+          { x: 690, y: 710, w: 420, h: 52, type: "stone" }
+        ],
+        spikes: [
+          { x: 60, y: 1660, w: 230, h: 34 },
+          { x: 930, y: 1280, w: 250, h: 34 }
+        ],
+        coins: [
+          { x: 450, y: 2320, kind: "blue", value: 5 },
+          { x: 840, y: 2020, kind: "gold", value: 10 },
+          { x: 610, y: 1700, kind: "blue", value: 5 },
+          { x: 380, y: 1370, kind: "gold", value: 10 },
+          { x: 800, y: 1020, kind: "blue", value: 5 },
+          { x: 560, y: 610, kind: "gold", value: 10 }
+        ],
+        goal: { x: 470, y: 245, w: 340, h: 92 }
+      },
+      {
+        number: 3,
+        name: "높은 하늘",
+        timeLimit: 90,
+        sky: ["#63b7ee", "#bce8ff", "#e9f7ff"],
+        windPattern: "up",
+        safeWalls: [
+          { x: 140, y: 2220, w: 400, h: 44, type: "plank" },
+          { x: 720, y: 1900, w: 390, h: 54, type: "stone" },
+          { x: 250, y: 1530, w: 360, h: 56, type: "cloud" },
+          { x: 760, y: 1150, w: 380, h: 46, type: "brick" },
+          { x: 260, y: 760, w: 380, h: 52, type: "stone" }
+        ],
+        spikes: [
+          { x: 770, y: 2130, w: 260, h: 34 },
+          { x: 120, y: 1710, w: 250, h: 34 },
+          { x: 880, y: 910, w: 240, h: 34 }
+        ],
+        coins: [
+          { x: 690, y: 2310, kind: "gold", value: 10 },
+          { x: 440, y: 2020, kind: "blue", value: 5 },
+          { x: 850, y: 1640, kind: "gold", value: 10 },
+          { x: 540, y: 1320, kind: "blue", value: 5 },
+          { x: 730, y: 970, kind: "blue", value: 5 },
+          { x: 510, y: 600, kind: "gold", value: 10 }
+        ],
+        goal: { x: 440, y: 245, w: 400, h: 92 }
+      },
+      {
+        number: 4,
+        name: "저녁노을",
+        timeLimit: 120,
+        sky: ["#7b8fe8", "#ffb36f", "#ffe6a3"],
+        windPattern: "gentle",
+        safeWalls: [
+          { x: 700, y: 2240, w: 380, h: 46, type: "brick" },
+          { x: 210, y: 1910, w: 390, h: 56, type: "cloud" },
+          { x: 760, y: 1560, w: 390, h: 44, type: "plank" },
+          { x: 170, y: 1160, w: 430, h: 52, type: "stone" },
+          { x: 700, y: 780, w: 410, h: 56, type: "cloud" }
+        ],
+        spikes: [
+          { x: 110, y: 2110, w: 250, h: 34 },
+          { x: 820, y: 1760, w: 260, h: 34 },
+          { x: 240, y: 1350, w: 260, h: 34 },
+          { x: 900, y: 1000, w: 240, h: 34 }
+        ],
+        coins: [
+          { x: 550, y: 2320, kind: "blue", value: 5 },
+          { x: 880, y: 2050, kind: "gold", value: 10 },
+          { x: 410, y: 1700, kind: "blue", value: 5 },
+          { x: 690, y: 1410, kind: "gold", value: 10 },
+          { x: 520, y: 970, kind: "blue", value: 5 },
+          { x: 870, y: 610, kind: "gold", value: 10 }
+        ],
+        goal: { x: 455, y: 245, w: 370, h: 92 }
+      },
+      {
+        number: 5,
+        name: "밤하늘",
+        timeLimit: 120,
+        sky: ["#1d2b64", "#4f5fb8", "#b998ff"],
+        windPattern: "wild",
+        safeWalls: [
+          { x: 180, y: 2250, w: 390, h: 52, type: "stone" },
+          { x: 760, y: 1940, w: 370, h: 46, type: "brick" },
+          { x: 230, y: 1580, w: 370, h: 56, type: "cloud" },
+          { x: 800, y: 1210, w: 360, h: 44, type: "plank" },
+          { x: 210, y: 830, w: 380, h: 52, type: "stone" },
+          { x: 730, y: 520, w: 360, h: 56, type: "cloud" }
+        ],
+        spikes: [
+          { x: 820, y: 2220, w: 260, h: 34 },
+          { x: 90, y: 1840, w: 250, h: 34 },
+          { x: 840, y: 1450, w: 260, h: 34 },
+          { x: 100, y: 1080, w: 250, h: 34 },
+          { x: 760, y: 710, w: 270, h: 34 }
+        ],
+        coins: [
+          { x: 660, y: 2360, kind: "gold", value: 10 },
+          { x: 500, y: 2060, kind: "blue", value: 5 },
+          { x: 900, y: 1740, kind: "gold", value: 10 },
+          { x: 450, y: 1370, kind: "blue", value: 5 },
+          { x: 720, y: 1050, kind: "gold", value: 10 },
+          { x: 530, y: 700, kind: "blue", value: 5 },
+          { x: 860, y: 410, kind: "gold", value: 10 }
+        ],
+        goal: { x: 430, y: 210, w: 420, h: 92 }
+      }
+    ];
 
     function resize() {
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -466,7 +590,7 @@
       overlay.innerHTML = html`
         <section class="panel">
           <h1>바람이 분다</h1>
-          <p class="subtitle">The Wind Blows · Stage 1</p>
+          <p class="subtitle">The Wind Blows · 5 Stages</p>
           <button id="startBtn">START</button>
           <p class="hint">← → 또는 화면 아래 버튼으로 바람을 타고 골 벽까지 올라가세요.</p>
         </section>
@@ -501,7 +625,7 @@
       overlay.innerHTML = html`
         <section class="panel">
           <h2>${playerCount === 1 ? "1인 플레이" : "2인 번갈아 플레이"}</h2>
-          <p class="subtitle">${playerCount === 1 ? "Stage 1을 혼자 플레이합니다." : "Stage 1을 1P가 먼저, 2P가 이어서 플레이합니다."}</p>
+          <p class="subtitle">${playerCount === 1 ? "Stage 1부터 5까지 혼자 플레이합니다." : "각 Stage를 1P가 먼저, 2P가 이어서 플레이합니다."}</p>
           <div class="fieldGrid">
             <label>1P 이름
               <input id="p1Name" maxlength="10" value="${state.players[0].name}" autocomplete="off">
@@ -513,7 +637,7 @@
             ` : ""}
           </div>
           <button id="playBtn" class="secondary">${playerCount === 1 ? "게임 시작" : "1P부터 시작"}</button>
-          <p class="hint">${playerCount === 1 ? "1P는 빨간 풍선으로 플레이합니다." : "1P는 빨간 풍선, 2P는 노란 연입니다. 둘 다 같은 Stage 1 코스를 달려요."}</p>
+          <p class="hint">${playerCount === 1 ? "1P는 빨간 풍선으로 플레이합니다." : "1P는 빨간 풍선, 2P는 노란 연입니다. 둘 다 같은 스테이지 코스를 달려요."}</p>
         </section>
       `;
       document.getElementById("playBtn").addEventListener("click", () => {
@@ -522,11 +646,14 @@
           state.players[1].name = cleanName(document.getElementById("p2Name").value, "P2");
         }
         state.currentPlayerIndex = 0;
+        state.currentStageIndex = 0;
         activePlayers().forEach((p) => {
           p.score = 0;
           p.time = 0;
           p.coins = 0;
           p.cleared = false;
+          p.lives = 5;
+          p.stageResults = [];
         });
         startCountdown();
       });
@@ -541,6 +668,10 @@
       return state.players.slice(0, state.playerCount);
     }
 
+    function currentStage() {
+      return stages[state.currentStageIndex];
+    }
+
     function hasNextPlayer() {
       return state.currentPlayerIndex < state.playerCount - 1;
     }
@@ -549,8 +680,12 @@
       if (hasNextPlayer()) {
         state.currentPlayerIndex += 1;
         startCountdown();
+      } else if (state.currentStageIndex < stages.length - 1) {
+        state.currentStageIndex += 1;
+        state.currentPlayerIndex = 0;
+        startCountdown();
       } else {
-        showResults();
+        showEnding();
       }
     }
 
@@ -563,7 +698,7 @@
       overlay.innerHTML = html`
         <section class="panel">
           <h2>${currentPlayer().name} 차례</h2>
-          <p class="subtitle">Stage 1</p>
+          <p class="subtitle">Stage ${currentStage().number} · ${currentStage().name}</p>
           <h1 id="countNumber">${count}</h1>
         </section>
       `;
@@ -582,22 +717,27 @@
 
     function startRun() {
       const player = currentPlayer();
+      const stage = currentStage();
       state.screen = "play";
       syncPlayingClass();
       overlay.style.display = "none";
       state.run = {
         playerId: player.id,
+        stageNumber: stage.number,
         x: WORLD.width / 2,
         y: WORLD.height - 170,
         vx: 0,
         vy: -55,
-        timeLeft: STAGE_TIME,
+        timeLeft: stage.timeLimit,
         elapsed: 0,
         score: 0,
         coins: stage.coins.map((coin) => ({ ...coin, collected: false, pop: 0 })),
         popups: [],
         safeResting: false,
-        clearTimer: 0
+        clearTimer: 0,
+        wind: { x: 0, y: -BASE_WIND },
+        windTimer: 0,
+        nextWindWarning: 0
       };
       state.cameraY = WORLD.height - window.innerHeight;
       state.keys.left = false;
@@ -612,9 +752,10 @@
     function updateHud() {
       const player = currentPlayer();
       const run = state.run;
-      turnInfo.textContent = `${player.id}P ${player.name} · Stage 1`;
+      const stage = currentStage();
+      turnInfo.textContent = `${player.id}P ${player.name} · Stage ${stage.number} · 생명 ${"♥".repeat(player.lives)}`;
       scoreInfo.textContent = `점수 ${run ? run.score : player.score}`;
-      timeInfo.textContent = `${Math.max(0, Math.ceil(run ? run.timeLeft : STAGE_TIME))}초`;
+      timeInfo.textContent = `${Math.max(0, Math.ceil(run ? run.timeLeft : stage.timeLimit))}초`;
       syncPlayingClass();
     }
 
@@ -647,6 +788,7 @@
         return;
       }
 
+      updateWind(run, dt);
       const horizontal = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
       run.vx += horizontal * MOVE_SPEED * 4.2 * dt;
       run.vx *= Math.pow(DRAG, dt * 60);
@@ -659,7 +801,8 @@
         run.vx *= Math.pow(0.92, dt * 60);
         if (Math.abs(run.vy) < 14) run.vy = 0;
       } else {
-        run.vy += GRAVITY_WIND * dt;
+        run.vx += run.wind.x * dt;
+        run.vy += run.wind.y * dt;
         run.vy = Math.max(run.vy, -165);
       }
 
@@ -669,6 +812,8 @@
       run.y = clamp(run.y, 120, WORLD.height - PLAYER_RADIUS);
 
       collectCoins(run, player);
+      checkSpikeHit(run, player);
+      if (state.screen !== "play") return;
       checkGoal(run, player);
       if (state.screen !== "play") return;
       checkMissedGoal(run, player);
@@ -685,8 +830,30 @@
       updateHud();
     }
 
+    function updateWind(run, dt) {
+      const stage = currentStage();
+      if (stage.windPattern === "up") {
+        run.wind.x = 0;
+        run.wind.y = -BASE_WIND;
+        run.nextWindWarning = 0;
+        return;
+      }
+
+      run.windTimer -= dt;
+      if (run.windTimer <= 0) {
+        const options = stage.windPattern === "wild"
+          ? [{ x: 0, y: -BASE_WIND }, { x: -42, y: -84 }, { x: 42, y: -84 }, { x: -70, y: -72 }, { x: 70, y: -72 }]
+          : [{ x: 0, y: -BASE_WIND }, { x: -34, y: -86 }, { x: 34, y: -86 }];
+        const next = options[Math.floor(Math.random() * options.length)];
+        run.wind.x = next.x;
+        run.wind.y = next.y;
+        run.windTimer = stage.windPattern === "wild" ? 4.2 : 6.2;
+      }
+      run.nextWindWarning = Math.max(0, Math.min(2, run.windTimer));
+    }
+
     function findShelter(x, y) {
-      return stage.safeWalls.find((wall) => {
+      return currentStage().safeWalls.find((wall) => {
         const underObject = y > wall.y + wall.h - 6 && y < wall.y + wall.h + 92;
         const withinWidth = x > wall.x - 22 && x < wall.x + wall.w + 22;
         return underObject && withinWidth;
@@ -706,7 +873,26 @@
       });
     }
 
+    function checkSpikeHit(run, player) {
+      const hit = currentStage().spikes.some((spike) => {
+        const nearX = run.x > spike.x - PLAYER_RADIUS * 0.65 && run.x < spike.x + spike.w + PLAYER_RADIUS * 0.65;
+        const nearY = run.y > spike.y - PLAYER_RADIUS * 0.65 && run.y < spike.y + spike.h + PLAYER_RADIUS * 0.65;
+        return nearX && nearY;
+      });
+      if (!hit) return;
+
+      player.lives = Math.max(0, player.lives - 1);
+      beep(180, 0.12, "sawtooth", 0.08);
+      setTimeout(() => beep(130, 0.18, "sawtooth", 0.07), 90);
+      if (player.lives <= 0) {
+        showLifeOut(player);
+      } else {
+        showSpikeRetry(player);
+      }
+    }
+
     function checkGoal(run, player) {
+      const stage = currentStage();
       const goal = stage.goal;
       if (
         run.x > goal.x &&
@@ -714,10 +900,18 @@
         run.y > goal.y &&
         run.y < goal.y + goal.h
       ) {
-        player.score = run.score + Math.max(0, Math.ceil(run.timeLeft));
-        player.time = run.elapsed;
-        player.coins = run.coins.filter((coin) => coin.collected).length;
+        const stageScore = run.score + Math.max(0, Math.ceil(run.timeLeft));
+        player.score += stageScore;
+        player.time += run.elapsed;
+        player.coins += run.coins.filter((coin) => coin.collected).length;
         player.cleared = true;
+        player.stageResults[stage.number - 1] = {
+          stage: stage.number,
+          score: stageScore,
+          coins: run.coins.filter((coin) => coin.collected).length,
+          time: run.elapsed,
+          lives: player.lives
+        };
         showStageClear();
       }
     }
@@ -730,10 +924,16 @@
 
     function markZeroAndContinue(player) {
       const run = state.run;
-      player.score = 0;
-      player.time = run ? run.elapsed : 0;
-      player.coins = 0;
+      player.time += run ? run.elapsed : 0;
       player.cleared = false;
+      player.stageResults[state.currentStageIndex] = {
+        stage: currentStage().number,
+        score: 0,
+        coins: 0,
+        time: run ? run.elapsed : 0,
+        lives: player.lives,
+        failed: true
+      };
       continueAfterTurn();
     }
 
@@ -760,6 +960,50 @@
       document.getElementById("missZeroBtn").addEventListener("click", () => markZeroAndContinue(player));
     }
 
+    function showSpikeRetry(player) {
+      state.screen = "spike";
+      syncPlayingClass();
+      state.keys.left = false;
+      state.keys.right = false;
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>OUCH!</h2>
+          <p class="subtitle">가시벽에 닿았어요. 생명 ${player.lives}개 남음</p>
+          <button id="spikeRetryBtn">다시 시작</button>
+        </section>
+      `;
+      document.getElementById("spikeRetryBtn").addEventListener("click", startCountdown);
+    }
+
+    function showLifeOut(player) {
+      state.screen = "lifeout";
+      syncPlayingClass();
+      state.keys.left = false;
+      state.keys.right = false;
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>GAME OVER</h2>
+          <p class="subtitle">${player.name}의 생명이 모두 사라졌어요.</p>
+          <div class="menuGrid">
+            <button id="lifeRetryBtn">처음부터 다시</button>
+            <button id="lifeZeroBtn" class="secondary">0점 처리</button>
+          </div>
+        </section>
+      `;
+      document.getElementById("lifeRetryBtn").addEventListener("click", () => {
+        player.lives = 5;
+        player.score = 0;
+        player.time = 0;
+        player.coins = 0;
+        player.stageResults = [];
+        state.currentStageIndex = 0;
+        startCountdown();
+      });
+      document.getElementById("lifeZeroBtn").addEventListener("click", () => markZeroAndContinue(player));
+    }
+
     function showTimeUp() {
       state.screen = "timeup";
       syncPlayingClass();
@@ -778,23 +1022,33 @@
 
     function showStageClear() {
       const player = currentPlayer();
+      const stage = currentStage();
+      const result = player.stageResults[stage.number - 1];
       state.screen = "clear";
       syncPlayingClass();
       fanfare();
       overlay.style.display = "grid";
       overlay.innerHTML = html`
         <section class="panel">
-          <h2>STAGE CLEAR!</h2>
+          <h2>STAGE ${stage.number} CLEAR!</h2>
           <p class="subtitle">${player.name}이 wig 구름을 쓰고 흔들흔들!</p>
           <div class="scoreTable">
-            <div class="scoreRow"><span>획득 점수</span><strong>${player.score}점</strong></div>
-            <div class="scoreRow"><span>먹은 동전</span><strong>${player.coins}개</strong></div>
-            <div class="scoreRow"><span>클리어 시간</span><strong>${player.time.toFixed(1)}초</strong></div>
+            <div class="scoreRow"><span>스테이지 점수</span><strong>${result.score}점</strong></div>
+            <div class="scoreRow"><span>총 점수</span><strong>${player.score}점</strong></div>
+            <div class="scoreRow"><span>먹은 동전</span><strong>${result.coins}개</strong></div>
+            <div class="scoreRow"><span>클리어 시간</span><strong>${result.time.toFixed(1)}초</strong></div>
+            <div class="scoreRow"><span>남은 생명</span><strong>${"♥".repeat(player.lives)}</strong></div>
           </div>
-          <button id="nextBtn" class="secondary">${hasNextPlayer() ? "2P 차례 시작" : "결과 보기"}</button>
+          <button id="nextBtn" class="secondary">${nextTurnLabel()}</button>
         </section>
       `;
       document.getElementById("nextBtn").addEventListener("click", continueAfterTurn);
+    }
+
+    function nextTurnLabel() {
+      if (hasNextPlayer()) return "2P 차례 시작";
+      if (state.currentStageIndex < stages.length - 1) return `Stage ${stages[state.currentStageIndex + 1].number} 시작`;
+      return "엔딩 보기";
     }
 
     function showResults() {
@@ -807,7 +1061,7 @@
       overlay.style.display = "grid";
       overlay.innerHTML = html`
         <section class="panel">
-          <h2>Stage 1 결과</h2>
+          <h2>최종 결과</h2>
           <p class="subtitle">${state.playerCount === 1 ? "플레이 완료!" : winner ? `${winner.name} 승리 V포즈!` : "둘 다 멋진 플레이!"}</p>
           <div class="scoreTable">
             ${players.map((player) => html`
@@ -823,19 +1077,43 @@
       `;
       document.getElementById("againBtn").addEventListener("click", () => {
         state.currentPlayerIndex = 0;
+        state.currentStageIndex = 0;
         activePlayers().forEach((p) => {
           p.score = 0;
           p.time = 0;
           p.coins = 0;
           p.cleared = false;
+          p.lives = 5;
+          p.stageResults = [];
         });
         startCountdown();
       });
       document.getElementById("namesBtn").addEventListener("click", showSetup);
     }
 
+    function showEnding() {
+      state.screen = "ending";
+      syncPlayingClass();
+      pauseBgm();
+      fanfare();
+      overlay.style.display = "grid";
+      overlay.innerHTML = html`
+        <section class="panel">
+          <h2>THE END</h2>
+          <p class="subtitle">풍선과 연이 쿠키를 먹고 밤하늘을 가득 채웠어요.</p>
+          <div class="scoreTable">
+            ${activePlayers().map((player) => html`
+              <div class="scoreRow"><span>${player.id}P ${player.name}</span><strong>${player.score}점 · 생명 ${"♥".repeat(player.lives)}</strong></div>
+            `).join("")}
+          </div>
+          <button id="endingResultBtn" class="secondary">최종 결과 보기</button>
+        </section>
+      `;
+      document.getElementById("endingResultBtn").addEventListener("click", showResults);
+    }
+
     function formatPlayerResult(player) {
-      return player.cleared ? `${player.score}점 · ${player.time.toFixed(1)}초` : "0점 · 실패";
+      return player.stageResults.length ? `${player.score}점 · ${player.time.toFixed(1)}초 · 동전 ${player.coins}개` : "0점 · 실패";
     }
 
     function getWinner() {
@@ -849,11 +1127,11 @@
 
     function saveBestScore(score) {
       const best = getBestScore();
-      if (score > best) localStorage.setItem("windBlowsBestStage1", String(score));
+      if (score > best) localStorage.setItem("windBlowsBestTotal", String(score));
     }
 
     function getBestScore() {
-      return Number(localStorage.getItem("windBlowsBestStage1") || 0);
+      return Number(localStorage.getItem("windBlowsBestTotal") || 0);
     }
 
     function draw() {
@@ -865,10 +1143,11 @@
     }
 
     function drawSky() {
+      const sky = currentStage().sky;
       const gradient = ctx.createLinearGradient(0, 0, 0, window.innerHeight);
-      gradient.addColorStop(0, "#6fc4f1");
-      gradient.addColorStop(0.55, "#b9ecff");
-      gradient.addColorStop(1, "#fff2b1");
+      gradient.addColorStop(0, sky[0]);
+      gradient.addColorStop(0.55, sky[1]);
+      gradient.addColorStop(1, sky[2]);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -893,8 +1172,9 @@
 
     function drawWorld() {
       drawStartBench();
-      stage.safeWalls.forEach(drawSafeWall);
-      stage.coins.forEach((coin, index) => drawCoin(coin, index));
+      currentStage().safeWalls.forEach(drawSafeWall);
+      currentStage().spikes.forEach(drawSpikeWall);
+      currentStage().coins.forEach((coin, index) => drawCoin(coin, index));
       drawGoal();
     }
 
@@ -1000,6 +1280,72 @@
       }
     }
 
+    function drawSpikeWall(spike) {
+      const p = worldToScreen(spike.x, spike.y);
+      const scale = getScale();
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+
+      ctx.shadowColor = "rgba(80, 25, 20, 0.25)";
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetY = 4;
+      const baseGradient = ctx.createLinearGradient(0, 0, 0, spike.h * 0.5);
+      baseGradient.addColorStop(0, "#ff867c");
+      baseGradient.addColorStop(0.45, "#e53935");
+      baseGradient.addColorStop(1, "#9f2020");
+      ctx.fillStyle = baseGradient;
+      ctx.strokeStyle = "#7f1717";
+      ctx.lineWidth = 3;
+      roundRect(0, 0, spike.w, spike.h * 0.42, 7, true);
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255, 214, 210, 0.5)";
+      roundRect(8, 5, spike.w - 16, 5, 3, true);
+
+      const teeth = Math.max(5, Math.floor(spike.w / 30));
+      const toothW = spike.w / teeth;
+      for (let i = 0; i < teeth; i += 1) {
+        const x = i * toothW;
+        const wobble = Math.sin(i * 1.7 + spike.x * 0.03) * toothW * 0.08;
+        const rootY = spike.h * (0.34 + (i % 2) * 0.04);
+        const tipY = spike.h * (0.86 + ((i + 1) % 3) * 0.05);
+        const left = x + toothW * 0.08;
+        const right = x + toothW * 0.92;
+        const tipX = x + toothW * 0.5 + wobble;
+
+        const bladeGradient = ctx.createLinearGradient(left, rootY, right, tipY);
+        bladeGradient.addColorStop(0, "#ffd1cc");
+        bladeGradient.addColorStop(0.36, "#ef5350");
+        bladeGradient.addColorStop(1, "#8e1717");
+        ctx.fillStyle = bladeGradient;
+        ctx.strokeStyle = "#6d1111";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(left, rootY);
+        ctx.quadraticCurveTo(x + toothW * 0.34, rootY + 4, tipX, tipY);
+        ctx.quadraticCurveTo(x + toothW * 0.68, rootY + 3, right, rootY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 245, 240, 0.65)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(left + toothW * 0.18, rootY + 3);
+        ctx.lineTo(tipX - toothW * 0.08, tipY - 6);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "rgba(90, 10, 10, 0.22)";
+      for (let x = 14; x < spike.w; x += 38) {
+        ctx.beginPath();
+        ctx.arc(x, spike.h * 0.2, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     function drawCoin(coin, index) {
       const runCoin = state.run?.coins[index];
       if (runCoin?.collected) return;
@@ -1037,7 +1383,7 @@
     }
 
     function drawGoal() {
-      const goal = stage.goal;
+      const goal = currentStage().goal;
       const p = worldToScreen(goal.x, goal.y);
       const scale = getScale();
       const shimmer = Math.sin(performance.now() / 180) * 0.5 + 0.5;
@@ -1216,7 +1562,39 @@
         ctx.closePath();
         ctx.fill();
         ctx.restore();
+        if (currentStage().windPattern !== "up" && run.windTimer <= 2) {
+          drawWindWarning(run);
+        }
       }
+    }
+
+    function drawWindWarning(run) {
+      const cx = window.innerWidth / 2;
+      const cy = 112;
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+      ctx.strokeStyle = "rgba(18,48,71,0.14)";
+      ctx.lineWidth = 2;
+      roundRect(cx - 150, cy - 42, 300, 84, 8, true);
+      ctx.fillStyle = "#14577a";
+      ctx.font = "900 20px Trebuchet MS, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("바람 방향!", cx, cy - 18);
+      ctx.translate(cx, cy + 18);
+      ctx.rotate(Math.atan2(run.wind.y, run.wind.x) + Math.PI / 2);
+      ctx.fillStyle = "#2279bb";
+      ctx.beginPath();
+      ctx.moveTo(0, -28);
+      ctx.lineTo(-18, 6);
+      ctx.lineTo(-7, 6);
+      ctx.lineTo(-7, 28);
+      ctx.lineTo(7, 28);
+      ctx.lineTo(7, 6);
+      ctx.lineTo(18, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
 
     function loop(now) {
