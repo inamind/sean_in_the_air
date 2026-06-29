@@ -677,16 +677,24 @@
     }
 
     function continueAfterTurn() {
-      if (hasNextPlayer()) {
-        state.currentPlayerIndex += 1;
+      state.run = null;
+      const nextPlayerIndex = state.currentPlayerIndex + 1;
+      const nextStageIndex = state.currentStageIndex + 1;
+
+      if (nextPlayerIndex < activePlayers().length) {
+        state.currentPlayerIndex = nextPlayerIndex;
         startCountdown();
-      } else if (state.currentStageIndex < stages.length - 1) {
-        state.currentStageIndex += 1;
+        return;
+      }
+
+      if (nextStageIndex < stages.length) {
+        state.currentStageIndex = nextStageIndex;
         state.currentPlayerIndex = 0;
         startCountdown();
-      } else {
-        showEnding();
+        return;
       }
+
+      showEnding();
     }
 
     function startCountdown() {
@@ -1031,6 +1039,7 @@
       overlay.innerHTML = html`
         <section class="panel">
           <h2>STAGE ${stage.number} CLEAR!</h2>
+          <p class="hint">${nextTurnDetail()}</p>
           <p class="subtitle">${player.name}이 wig 구름을 쓰고 흔들흔들!</p>
           <div class="scoreTable">
             <div class="scoreRow"><span>스테이지 점수</span><strong>${result.score}점</strong></div>
@@ -1049,6 +1058,12 @@
       if (hasNextPlayer()) return "2P 차례 시작";
       if (state.currentStageIndex < stages.length - 1) return `Stage ${stages[state.currentStageIndex + 1].number} 시작`;
       return "엔딩 보기";
+    }
+
+    function nextTurnDetail() {
+      if (hasNextPlayer()) return `NEXT: ${state.players[state.currentPlayerIndex + 1].name} - STAGE ${currentStage().number}`;
+      if (state.currentStageIndex < stages.length - 1) return `NEXT: STAGE ${stages[state.currentStageIndex + 1].number} - ${stages[state.currentStageIndex + 1].name}`;
+      return "NEXT: THE END";
     }
 
     function showResults() {
