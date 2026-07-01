@@ -387,10 +387,11 @@
     const WORLD = { width: 1280, height: 2600 };
     const BASE_WIND = 92;
     const SIDE_WIND = 86;
+    const SIDE_WIND_LIFT = 34;
     const WIND_DIRECTIONS = {
       up: { x: 0, y: -BASE_WIND, label: "\uC0C1" },
-      left: { x: -SIDE_WIND, y: 0, label: "\uC88C" },
-      right: { x: SIDE_WIND, y: 0, label: "\uC6B0" }
+      left: { x: -SIDE_WIND, y: -SIDE_WIND_LIFT, label: "\uC88C" },
+      right: { x: SIDE_WIND, y: -SIDE_WIND_LIFT, label: "\uC6B0" }
     };
     const MOVE_SPEED = 245;
     const DRAG = 0.982;
@@ -865,6 +866,12 @@
       const run = state.run;
       const player = currentPlayer();
 
+      if (run.spikeCrash) {
+        updateSpikeCrash(run, player, dt);
+        updateHud();
+        return;
+      }
+
       run.elapsed += dt;
       run.timeLeft -= dt;
       if (run.timeLeft <= 0) {
@@ -985,6 +992,7 @@
     }
 
     function checkSpikeHit(run, player) {
+      if (run.spikeCrash) return;
       const hit = currentStage().spikes.some((spike) => {
         const nearX = run.x > spike.x - PLAYER_RADIUS * 0.65 && run.x < spike.x + spike.w + PLAYER_RADIUS * 0.65;
         const nearY = run.y > spike.y - PLAYER_RADIUS * 0.65 && run.y < spike.y + spike.h + PLAYER_RADIUS * 0.65;
@@ -992,14 +1000,58 @@
       });
       if (!hit) return;
 
-      player.lives = Math.max(0, player.lives - 1);
+      state.keys.left = false;
+      state.keys.right = false;
+      run.spikeCrash = {
+        phase: "fall",
+        elapsed: 0,
+        fallDuration: 0.8,
+        heartDuration: 0.95,
+        deducted: false,
+        startY: run.y,
+        targetY: WORLD.height - PLAYER_RADIUS,
+        spin: run.vx >= 0 ? 1 : -1
+      };
+      run.vx = clamp(run.vx, -120, 120);
+      run.vy = 260;
       beep(180, 0.12, "sawtooth", 0.08);
       setTimeout(() => beep(130, 0.18, "sawtooth", 0.07), 90);
-      if (player.lives <= 0) {
-        showLifeOut(player);
+    }
+
+    function updateSpikeCrash(run, player, dt) {
+      const crash = run.spikeCrash;
+      crash.elapsed += dt;
+
+      if (crash.phase === "fall") {
+        const progress = Math.min(1, crash.elapsed / crash.fallDuration);
+        run.vx *= Math.pow(0.94, dt * 60);
+        run.vy += 980 * dt;
+        run.x = clamp(run.x + run.vx * dt, PLAYER_RADIUS + 18, WORLD.width - PLAYER_RADIUS - 18);
+        run.y = crash.startY + (crash.targetY - crash.startY) * easeInCubic(progress);
+        if (progress >= 1) {
+          run.y = crash.targetY;
+          run.vx = 0;
+          run.vy = 0;
+          crash.phase = "heart";
+          crash.elapsed = 0;
+          player.lives = Math.max(0, player.lives - 1);
+          crash.deducted = true;
+          playHeartBreakSound();
+        }
       } else {
-        showSpikeRetry(player);
+        if (crash.elapsed >= crash.heartDuration) {
+          run.spikeCrash = null;
+          if (player.lives <= 0) {
+            showLifeOut(player);
+          } else {
+            showSpikeRetry(player);
+          }
+          return;
+        }
       }
+
+      const targetCamera = clamp(run.y - window.innerHeight / getScale() * 0.6, 0, WORLD.height - window.innerHeight / getScale());
+      state.cameraY += (targetCamera - state.cameraY) * Math.min(1, dt * 7.5);
     }
 
     function checkGoal(run, player) {
@@ -1582,6 +1634,10 @@
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.scale(scale, scale);
+      if (run.spikeCrash?.phase === "fall") {
+        const progress = Math.min(1, run.spikeCrash.elapsed / run.spikeCrash.fallDuration);
+        ctx.rotate(run.spikeCrash.spin * progress * 1.35);
+      }
 
       drawCharacter(player, run);
 
@@ -1731,7 +1787,63 @@
           drawWindWarning(run);
         }
         drawSpecialScoreFlash(run);
+        drawBrokenHeartCrash(run);
       }
+    }
+
+    function drawBrokenHeartCrash(run) {
+      const crash = run.spikeCrash;
+      if (!crash || crash.phase !== "heart") return;
+
+      const progress = Math.min(1, crash.elapsed / crash.heartDuration);
+      const alpha = Math.sin(progress * Math.PI);
+      const size = Math.min(window.innerWidth * 0.26, window.innerHeight * 0.42);
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const gap = 18 + progress * size * 0.46;
+      const drop = progress * size * 0.18;
+      const rotate = progress * 0.55;
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.2, alpha);
+      ctx.fillStyle = `rgba(18, 48, 71, ${0.18 * alpha})`;
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+      if (heartImage.complete && heartImage.naturalWidth) {
+        drawHeartHalf(cx - gap, cy + drop, size, "left", -rotate);
+        drawHeartHalf(cx + gap, cy + drop, size, "right", rotate);
+      } else {
+        ctx.fillStyle = "#ff4f76";
+        ctx.font = `900 ${size}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("X", cx, cy);
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.82)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - size * 0.38);
+      ctx.lineTo(cx - 12, cy - size * 0.12);
+      ctx.lineTo(cx + 10, cy + size * 0.08);
+      ctx.lineTo(cx - 8, cy + size * 0.36);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHeartHalf(x, y, size, side, rotation) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.beginPath();
+      if (side === "left") {
+        ctx.rect(-size / 2, -size / 2, size / 2, size);
+      } else {
+        ctx.rect(0, -size / 2, size / 2, size);
+      }
+      ctx.clip();
+      ctx.drawImage(heartImage, -size / 2, -size / 2, size, size);
+      ctx.restore();
     }
 
     function drawSpecialScoreFlash(run) {
@@ -1808,6 +1920,10 @@
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    function easeInCubic(value) {
+      return value * value * value;
     }
 
     function roundRect(x, y, w, h, r, stroke = false) {
@@ -1927,6 +2043,12 @@
       [660, 880, 1320].forEach((note, index) => {
         setTimeout(() => beep(note, 0.12, "sine", 0.16), index * 70);
       });
+    }
+
+    function playHeartBreakSound() {
+      beep(420, 0.12, "triangle", 0.13);
+      setTimeout(() => beep(260, 0.16, "sawtooth", 0.12), 80);
+      setTimeout(() => beep(160, 0.22, "sawtooth", 0.1), 170);
     }
 
     function fanfare() {
