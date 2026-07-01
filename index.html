@@ -74,6 +74,20 @@
       white-space: nowrap;
     }
 
+    .heartHud {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 5px;
+    }
+
+    .heartHud img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 3px rgba(18, 48, 71, 0.24));
+    }
+
     #turnInfo {
       justify-self: start;
     }
@@ -383,6 +397,8 @@
     const SAFE_BRAKE = 0.88;
     const PLAYER_RADIUS = 28;
     const CHARACTER_DRAW_SIZE = 112;
+    const INITIAL_LIVES = 2;
+    const MAX_LIVES = 5;
     const SPECIAL_COIN_VALUE = 20;
     const SPECIAL_COIN_APPEARANCES = 2;
 
@@ -395,6 +411,7 @@
       blue: loadCharacterImage("동전_파란색.jfif"),
       special: loadCharacterImage("sean_coin.png")
     };
+    const heartImage = loadCharacterImage("하트.png");
 
     const characterCrops = {
       balloon: { x: 0.22, y: 0.12, w: 0.56, h: 0.72 },
@@ -410,8 +427,8 @@
     const state = {
       screen: "title",
       players: [
-        { id: 1, name: "SEAN", type: "balloon", color: "#ef5350", score: 0, time: 0, coins: 0, cleared: false, lives: 5, stageResults: [] },
-        { id: 2, name: "FRIEND", type: "kite", color: "#f7c943", score: 0, time: 0, coins: 0, cleared: false, lives: 5, stageResults: [] }
+        { id: 1, name: "SEAN", type: "balloon", color: "#ef5350", score: 0, time: 0, coins: 0, cleared: false, lives: INITIAL_LIVES, stageResults: [] },
+        { id: 2, name: "FRIEND", type: "kite", color: "#f7c943", score: 0, time: 0, coins: 0, cleared: false, lives: INITIAL_LIVES, stageResults: [] }
       ],
       playerCount: 2,
       currentPlayerIndex: 0,
@@ -451,6 +468,7 @@
           { x: 500, y: 960, kind: "blue", value: 5 },
           { x: 820, y: 640, kind: "gold", value: 10 }
         ],
+        heart: { x: 330, y: 1300 },
         goal: { x: 460, y: 245, w: 360, h: 92 }
       },
       {
@@ -478,6 +496,7 @@
           { x: 800, y: 1020, kind: "blue", value: 5 },
           { x: 560, y: 610, kind: "gold", value: 10 }
         ],
+        heart: { x: 940, y: 930 },
         goal: { x: 470, y: 245, w: 340, h: 92 }
       },
       {
@@ -506,6 +525,7 @@
           { x: 730, y: 970, kind: "blue", value: 5 },
           { x: 510, y: 600, kind: "gold", value: 10 }
         ],
+        heart: { x: 360, y: 880 },
         goal: { x: 440, y: 245, w: 400, h: 92 }
       },
       {
@@ -535,6 +555,7 @@
           { x: 520, y: 970, kind: "blue", value: 5 },
           { x: 870, y: 610, kind: "gold", value: 10 }
         ],
+        heart: { x: 320, y: 1460 },
         goal: { x: 455, y: 245, w: 370, h: 92 }
       },
       {
@@ -567,6 +588,7 @@
           { x: 530, y: 700, kind: "blue", value: 5 },
           { x: 860, y: 410, kind: "gold", value: 10 }
         ],
+        heart: { x: 970, y: 1160 },
         goal: { x: 430, y: 210, w: 420, h: 92 }
       }
     ];
@@ -582,7 +604,7 @@
         p.time = 0;
         p.coins = 0;
         p.cleared = false;
-        p.lives = 5;
+        p.lives = INITIAL_LIVES;
         p.stageResults = [];
       });
     }
@@ -789,6 +811,7 @@
         elapsed: 0,
         score: 0,
         coins: makeRunCoins(stage),
+        heart: stage.heart ? { ...stage.heart, collected: false } : null,
         popups: [],
         safeResting: false,
         clearTimer: 0,
@@ -810,7 +833,12 @@
       const player = currentPlayer();
       const run = state.run;
       const stage = currentStage();
-      turnInfo.textContent = `${player.id}P ${player.name} · Stage ${stage.number} · 생명 ${"♥".repeat(player.lives)}`;
+      turnInfo.innerHTML = html`
+        <div>${player.id}P ${player.name} · Stage ${stage.number}</div>
+        <div class="heartHud" aria-label="생명 ${player.lives}개">
+          ${Array.from({ length: player.lives }, () => `<img src="${encodeURI("하트.png")}" alt="">`).join("")}
+        </div>
+      `;
       scoreInfo.textContent = `점수 ${run ? run.score : player.score}`;
       timeInfo.textContent = `${Math.max(0, Math.ceil(run ? run.timeLeft : stage.timeLimit))}초`;
       syncPlayingClass();
@@ -869,6 +897,7 @@
       run.y = clamp(run.y, 120, WORLD.height - PLAYER_RADIUS);
 
       collectCoins(run, player);
+      collectHeart(run, player);
       checkSpikeHit(run, player);
       if (state.screen !== "play") return;
       checkGoal(run, player);
@@ -940,6 +969,19 @@
           }
         }
       });
+    }
+
+    function collectHeart(run, player) {
+      const heart = run.heart;
+      if (!heart || heart.collected || player.lives >= MAX_LIVES) return;
+      const dist = Math.hypot(run.x - heart.x, run.y - heart.y);
+      if (dist >= PLAYER_RADIUS + 30) return;
+
+      heart.collected = true;
+      player.lives = Math.min(MAX_LIVES, player.lives + 1);
+      run.popups.push({ x: heart.x, y: heart.y - 34, text: "+1 HEART", life: 1, maxLife: 1, heart: true });
+      playHeartSound();
+      updateHud();
     }
 
     function checkSpikeHit(run, player) {
@@ -1102,7 +1144,7 @@
             <div class="scoreRow"><span>총 점수</span><strong>${player.score}점</strong></div>
             <div class="scoreRow"><span>먹은 동전</span><strong>${result.coins}개</strong></div>
             <div class="scoreRow"><span>클리어 시간</span><strong>${result.time.toFixed(1)}초</strong></div>
-            <div class="scoreRow"><span>남은 생명</span><strong>${"♥".repeat(player.lives)}</strong></div>
+            <div class="scoreRow"><span>남은 생명</span><strong>${player.lives}/${MAX_LIVES}개</strong></div>
           </div>
           <button id="nextBtn" class="secondary">${nextTurnLabel()}</button>
         </section>
@@ -1165,7 +1207,7 @@
           <p class="subtitle">풍선과 연이 쿠키를 먹고 밤하늘을 가득 채웠어요.</p>
           <div class="scoreTable">
             ${activePlayers().map((player) => html`
-              <div class="scoreRow"><span>${player.id}P ${player.name}</span><strong>${player.score}점 · 생명 ${"♥".repeat(player.lives)}</strong></div>
+              <div class="scoreRow"><span>${player.id}P ${player.name}</span><strong>${player.score}점 · 생명 ${player.lives}/${MAX_LIVES}개</strong></div>
             `).join("")}
           </div>
           <button id="endingResultBtn" class="secondary">최종 결과 보기</button>
@@ -1238,6 +1280,8 @@
       currentStage().spikes.forEach(drawSpikeWall);
       const coins = state.screen === "play" && state.run ? state.run.coins : currentStage().coins;
       coins.forEach((coin, index) => drawCoin(coin, index));
+      const heart = state.screen === "play" && state.run ? state.run.heart : currentStage().heart;
+      drawHeartItem(heart);
       drawGoal();
     }
 
@@ -1448,6 +1492,37 @@
       ctx.restore();
     }
 
+    function drawHeartItem(heart) {
+      if (!heart || heart.collected) return;
+      const p = worldToScreen(heart.x, heart.y);
+      const pulse = Math.sin(performance.now() / 210) * 0.08 + 1;
+      const size = screenToWorldSize(62 * pulse);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.globalCompositeOperation = "lighter";
+      const glow = ctx.createRadialGradient(0, 0, size * 0.1, 0, 0, size * 0.9);
+      glow.addColorStop(0, "rgba(255, 255, 255, 0.78)");
+      glow.addColorStop(0.45, "rgba(255, 92, 126, 0.45)");
+      glow.addColorStop(1, "rgba(255, 92, 126, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.92, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+
+      if (heartImage.complete && heartImage.naturalWidth) {
+        ctx.drawImage(heartImage, -size / 2, -size / 2, size, size);
+      } else {
+        ctx.fillStyle = "#f94f70";
+        ctx.beginPath();
+        ctx.moveTo(0, size * 0.32);
+        ctx.bezierCurveTo(-size * 0.55, -size * 0.1, -size * 0.32, -size * 0.55, 0, -size * 0.25);
+        ctx.bezierCurveTo(size * 0.32, -size * 0.55, size * 0.55, -size * 0.1, 0, size * 0.32);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     function drawSpecialCoinGlow(index, pulse) {
       const now = performance.now();
       const ring = screenToWorldSize(48 * pulse);
@@ -1527,12 +1602,12 @@
         const pp = worldToScreen(popup.x, popup.y);
         ctx.save();
         ctx.globalAlpha = Math.max(0, popup.life / (popup.maxLife || 0.75));
-        ctx.fillStyle = popup.special ? "#ffed4a" : "#14577a";
+        ctx.fillStyle = popup.heart ? "#ff5c7a" : popup.special ? "#ffed4a" : "#14577a";
         ctx.strokeStyle = "rgba(18,48,71,0.72)";
-        ctx.lineWidth = popup.special ? 5 : 0;
-        ctx.font = `900 ${popup.special ? 44 : 26}px Trebuchet MS, Arial`;
+        ctx.lineWidth = popup.special || popup.heart ? 5 : 0;
+        ctx.font = `900 ${popup.special ? 44 : popup.heart ? 34 : 26}px Trebuchet MS, Arial`;
         ctx.textAlign = "center";
-        if (popup.special) ctx.strokeText(popup.text, pp.x, pp.y);
+        if (popup.special || popup.heart) ctx.strokeText(popup.text, pp.x, pp.y);
         ctx.fillText(popup.text, pp.x, pp.y);
         ctx.restore();
       });
@@ -1846,6 +1921,12 @@
       });
       setTimeout(() => beep(1760, 0.34, "sine", 0.22), 260);
       setTimeout(() => beep(440, 0.22, "sawtooth", 0.12), 300);
+    }
+
+    function playHeartSound() {
+      [660, 880, 1320].forEach((note, index) => {
+        setTimeout(() => beep(note, 0.12, "sine", 0.16), index * 70);
+      });
     }
 
     function fanfare() {
