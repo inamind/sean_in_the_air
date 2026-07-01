@@ -451,7 +451,7 @@
     const coinImages = {
       gold: loadCharacterImage("동전_노란색.jfif"),
       blue: loadCharacterImage("동전_파란색.jfif"),
-      special: loadCharacterImage("sean_coin.png")
+      special: loadCharacterImage("sean_coin_cutout.png")
     };
     const heartImage = loadCharacterImage("하트.png");
 
@@ -711,9 +711,9 @@
       overlay.style.display = "grid";
       overlay.innerHTML = html`
         <section class="panel titlePanel">
-          <h1>현's 바람이 분다</h1>
+          <h1>Sean In The Air</h1>
           <div class="titleCoinWrap">
-            <img class="titleCoin" src="${encodeURI("sean_coin.png")}" alt="Sean coin">
+            <img class="titleCoin" src="${encodeURI("sean_coin_cutout.png")}" alt="Sean coin">
           </div>
           <p class="subtitle">The Wind Blows · 5 Stages</p>
           <button id="startBtn">START</button>
