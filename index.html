@@ -372,6 +372,12 @@
 
     const WORLD = { width: 1280, height: 2600 };
     const BASE_WIND = 92;
+    const SIDE_WIND = 86;
+    const WIND_DIRECTIONS = {
+      up: { x: 0, y: -BASE_WIND, label: "\uC0C1" },
+      left: { x: -SIDE_WIND, y: 0, label: "\uC88C" },
+      right: { x: SIDE_WIND, y: 0, label: "\uC6B0" }
+    };
     const MOVE_SPEED = 245;
     const DRAG = 0.982;
     const SAFE_BRAKE = 0.88;
@@ -743,7 +749,7 @@
         popups: [],
         safeResting: false,
         clearTimer: 0,
-        wind: { x: 0, y: -BASE_WIND },
+        wind: { ...WIND_DIRECTIONS.up },
         windTimer: 0,
         nextWindWarning: 0
       };
@@ -841,23 +847,22 @@
     function updateWind(run, dt) {
       const stage = currentStage();
       if (stage.windPattern === "up") {
-        run.wind.x = 0;
-        run.wind.y = -BASE_WIND;
+        setWind(run, "up");
         run.nextWindWarning = 0;
         return;
       }
 
       run.windTimer -= dt;
       if (run.windTimer <= 0) {
-        const options = stage.windPattern === "wild"
-          ? [{ x: 0, y: -BASE_WIND }, { x: -42, y: -84 }, { x: 42, y: -84 }, { x: -70, y: -72 }, { x: 70, y: -72 }]
-          : [{ x: 0, y: -BASE_WIND }, { x: -34, y: -86 }, { x: 34, y: -86 }];
-        const next = options[Math.floor(Math.random() * options.length)];
-        run.wind.x = next.x;
-        run.wind.y = next.y;
+        const options = ["up", "left", "right"];
+        setWind(run, options[Math.floor(Math.random() * options.length)]);
         run.windTimer = stage.windPattern === "wild" ? 4.2 : 6.2;
       }
       run.nextWindWarning = Math.max(0, Math.min(2, run.windTimer));
+    }
+
+    function setWind(run, direction) {
+      run.wind = { ...WIND_DIRECTIONS[direction] };
     }
 
     function findShelter(x, y) {
@@ -1565,17 +1570,12 @@
         ctx.strokeStyle = "rgba(18,48,71,0.16)";
         ctx.lineWidth = 2;
         roundRect(arrowX - 38, arrowY - 46, 76, 92, 8, true);
-        ctx.fillStyle = "#2279bb";
-        ctx.beginPath();
-        ctx.moveTo(arrowX, arrowY - 30);
-        ctx.lineTo(arrowX - 23, arrowY + 6);
-        ctx.lineTo(arrowX - 8, arrowY + 6);
-        ctx.lineTo(arrowX - 8, arrowY + 31);
-        ctx.lineTo(arrowX + 8, arrowY + 31);
-        ctx.lineTo(arrowX + 8, arrowY + 6);
-        ctx.lineTo(arrowX + 23, arrowY + 6);
-        ctx.closePath();
-        ctx.fill();
+        drawWindArrow(arrowX, arrowY, 1, run.wind);
+        ctx.fillStyle = "#14577a";
+        ctx.font = "900 17px Trebuchet MS, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(run.wind.label, arrowX, arrowY + 39);
         ctx.restore();
         if (currentStage().windPattern !== "up" && run.windTimer <= 2) {
           drawWindWarning(run);
@@ -1595,9 +1595,16 @@
       ctx.font = "900 20px Trebuchet MS, Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("바람 방향!", cx, cy - 18);
-      ctx.translate(cx, cy + 18);
-      ctx.rotate(Math.atan2(run.wind.y, run.wind.x) + Math.PI / 2);
+      ctx.fillText(`WIND: ${run.wind.label}`, cx, cy - 18);
+      drawWindArrow(cx, cy + 18, 0.92, run.wind);
+      ctx.restore();
+    }
+
+    function drawWindArrow(x, y, size, wind) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.atan2(wind.y, wind.x) + Math.PI / 2);
+      ctx.scale(size, size);
       ctx.fillStyle = "#2279bb";
       ctx.beginPath();
       ctx.moveTo(0, -28);
