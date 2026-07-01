@@ -201,6 +201,8 @@
 
     .titlePanel {
       perspective: 900px;
+      overflow: hidden;
+      padding: clamp(12px, 2vw, 22px);
     }
 
     .titlePanel h1 {
@@ -210,22 +212,22 @@
     .titleLogo {
       display: block;
       width: min(680px, 88vw);
-      max-height: min(34vh, 260px);
+      max-height: min(30vh, 220px);
       object-fit: contain;
-      margin: 0 auto 4px;
+      margin: 0 auto;
       filter: drop-shadow(0 14px 22px rgba(18, 48, 71, 0.22));
     }
 
     .titleCoinWrap {
       display: grid;
       place-items: center;
-      margin: 4px 0 8px;
-      min-height: clamp(140px, 27vh, 230px);
+      margin: 0 0 8px;
+      min-height: clamp(112px, 24vh, 190px);
     }
 
     .titleCoin {
-      width: clamp(140px, 22vw, 220px);
-      height: clamp(140px, 22vw, 220px);
+      width: clamp(112px, 19vw, 180px);
+      height: clamp(112px, 19vw, 180px);
       object-fit: contain;
       filter: drop-shadow(0 18px 28px rgba(18, 48, 71, 0.28));
       animation: coinFlip 2.2s ease-in-out infinite;
@@ -724,9 +726,7 @@
           <div class="titleCoinWrap">
             <img class="titleCoin" src="${encodeURI("sean_coin_cutout.png")}" alt="Sean coin">
           </div>
-          <p class="subtitle">The Wind Blows · 5 Stages</p>
           <button id="startBtn">START</button>
-          <p class="hint">← → 또는 화면 아래 버튼으로 바람을 타고 골 벽까지 올라가세요.</p>
         </section>
       `;
       document.getElementById("startBtn").addEventListener("click", () => {
