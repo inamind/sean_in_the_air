@@ -383,6 +383,8 @@
     const SAFE_BRAKE = 0.88;
     const PLAYER_RADIUS = 28;
     const CHARACTER_DRAW_SIZE = 112;
+    const SPECIAL_COIN_VALUE = 777;
+    const SPECIAL_COIN_APPEARANCES = 2;
 
     const characterImages = {
       balloon: loadCharacterImage("캐릭터1.jfif"),
@@ -390,7 +392,8 @@
     };
     const coinImages = {
       gold: loadCharacterImage("동전_노란색.jfif"),
-      blue: loadCharacterImage("동전_파란색.jfif")
+      blue: loadCharacterImage("동전_파란색.jfif"),
+      special: loadCharacterImage("sean_coin.png")
     };
 
     const characterCrops = {
@@ -399,7 +402,8 @@
     };
     const coinCrops = {
       gold: { x: 0.28, y: 0.08, w: 0.44, h: 0.82 },
-      blue: { x: 0.28, y: 0.08, w: 0.44, h: 0.82 }
+      blue: { x: 0.28, y: 0.08, w: 0.44, h: 0.82 },
+      special: { x: 0, y: 0, w: 1, h: 1 }
     };
     const bgmTracks = ["game1.mp3", "game2.mp3", "game3.mp3"];
 
@@ -419,7 +423,9 @@
       audioReady: false,
       audio: null,
       bgm: null,
-      currentBgmTrack: ""
+      currentBgmTrack: "",
+      specialCoinPlan: [],
+      collectedSpecialCoins: []
     };
 
     const stages = [
@@ -565,6 +571,52 @@
       }
     ];
 
+    function resetGameProgress() {
+      state.currentPlayerIndex = 0;
+      state.currentStageIndex = 0;
+      state.run = null;
+      state.specialCoinPlan = createSpecialCoinPlan();
+      state.collectedSpecialCoins = [];
+      activePlayers().forEach((p) => {
+        p.score = 0;
+        p.time = 0;
+        p.coins = 0;
+        p.cleared = false;
+        p.lives = 5;
+        p.stageResults = [];
+      });
+    }
+
+    function createSpecialCoinPlan() {
+      const slots = [];
+      stages.forEach((stage) => {
+        stage.coins.forEach((coin, index) => {
+          slots.push({ stageNumber: stage.number, coinIndex: index, id: `${stage.number}:${index}` });
+        });
+      });
+      for (let i = slots.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slots[i], slots[j]] = [slots[j], slots[i]];
+      }
+      return slots.slice(0, SPECIAL_COIN_APPEARANCES);
+    }
+
+    function makeRunCoins(stage) {
+      return stage.coins.map((coin, index) => {
+        const specialSlot = state.specialCoinPlan.find((slot) => slot.stageNumber === stage.number && slot.coinIndex === index);
+        if (!specialSlot) return { ...coin, collected: false, pop: 0 };
+        if (state.collectedSpecialCoins.includes(specialSlot.id)) return null;
+        return {
+          ...coin,
+          kind: "special",
+          value: SPECIAL_COIN_VALUE,
+          specialId: specialSlot.id,
+          collected: false,
+          pop: 0
+        };
+      }).filter(Boolean);
+    }
+
     function resize() {
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       canvas.width = Math.floor(window.innerWidth * dpr);
@@ -651,16 +703,7 @@
         if (state.playerCount === 2) {
           state.players[1].name = cleanName(document.getElementById("p2Name").value, "P2");
         }
-        state.currentPlayerIndex = 0;
-        state.currentStageIndex = 0;
-        activePlayers().forEach((p) => {
-          p.score = 0;
-          p.time = 0;
-          p.coins = 0;
-          p.cleared = false;
-          p.lives = 5;
-          p.stageResults = [];
-        });
+        resetGameProgress();
         startCountdown();
       });
     }
@@ -745,7 +788,7 @@
         timeLeft: stage.timeLimit,
         elapsed: 0,
         score: 0,
-        coins: stage.coins.map((coin) => ({ ...coin, collected: false, pop: 0 })),
+        coins: makeRunCoins(stage),
         popups: [],
         safeResting: false,
         clearTimer: 0,
@@ -838,6 +881,10 @@
         popup.y -= 44 * dt;
       });
       run.popups = run.popups.filter((popup) => popup.life > 0);
+      if (run.specialFlash) {
+        run.specialFlash.life -= dt;
+        if (run.specialFlash.life <= 0) run.specialFlash = null;
+      }
 
       const targetCamera = clamp(run.y - window.innerHeight / getScale() * 0.58, 0, WORLD.height - window.innerHeight / getScale());
       state.cameraY += (targetCamera - state.cameraY) * Math.min(1, dt * 5.2);
@@ -877,11 +924,20 @@
       run.coins.forEach((coin) => {
         if (coin.collected) return;
         const dist = Math.hypot(run.x - coin.x, run.y - coin.y);
-        if (dist < PLAYER_RADIUS + 22) {
+        if (dist < PLAYER_RADIUS + (coin.kind === "special" ? 36 : 22)) {
           coin.collected = true;
           run.score += coin.value;
-          run.popups.push({ x: coin.x, y: coin.y - 24, text: `+${coin.value}`, life: 0.75 });
-          playCoinSound(coin.kind);
+          if (coin.kind === "special") {
+            if (coin.specialId && !state.collectedSpecialCoins.includes(coin.specialId)) {
+              state.collectedSpecialCoins.push(coin.specialId);
+            }
+            run.specialFlash = { text: `+${coin.value}`, life: 1.4, maxLife: 1.4 };
+            run.popups.push({ x: coin.x, y: coin.y - 36, text: `+${coin.value}`, life: 1.1, maxLife: 1.1, special: true });
+            playSpecialCoinSound();
+          } else {
+            run.popups.push({ x: coin.x, y: coin.y - 24, text: `+${coin.value}`, life: 0.75, maxLife: 0.75 });
+            playCoinSound(coin.kind);
+          }
         }
       });
     }
@@ -1006,12 +1062,7 @@
         </section>
       `;
       document.getElementById("lifeRetryBtn").addEventListener("click", () => {
-        player.lives = 5;
-        player.score = 0;
-        player.time = 0;
-        player.coins = 0;
-        player.stageResults = [];
-        state.currentStageIndex = 0;
+        resetGameProgress();
         startCountdown();
       });
       document.getElementById("lifeZeroBtn").addEventListener("click", () => markZeroAndContinue(player));
@@ -1096,16 +1147,7 @@
         </section>
       `;
       document.getElementById("againBtn").addEventListener("click", () => {
-        state.currentPlayerIndex = 0;
-        state.currentStageIndex = 0;
-        activePlayers().forEach((p) => {
-          p.score = 0;
-          p.time = 0;
-          p.coins = 0;
-          p.cleared = false;
-          p.lives = 5;
-          p.stageResults = [];
-        });
+        resetGameProgress();
         startCountdown();
       });
       document.getElementById("namesBtn").addEventListener("click", showSetup);
@@ -1194,7 +1236,8 @@
       drawStartBench();
       currentStage().safeWalls.forEach(drawSafeWall);
       currentStage().spikes.forEach(drawSpikeWall);
-      currentStage().coins.forEach((coin, index) => drawCoin(coin, index));
+      const coins = state.screen === "play" && state.run ? state.run.coins : currentStage().coins;
+      coins.forEach((coin, index) => drawCoin(coin, index));
       drawGoal();
     }
 
@@ -1373,6 +1416,9 @@
       const pulse = Math.sin(performance.now() / 230 + index) * 0.08 + 1;
       ctx.save();
       ctx.translate(p.x, p.y);
+      if (coin.kind === "special") {
+        drawSpecialCoinGlow(index, pulse);
+      }
       const image = coinImages[coin.kind];
       if (image.complete && image.naturalWidth) {
         const crop = coinCrops[coin.kind];
@@ -1380,16 +1426,16 @@
         const sy = image.naturalHeight * crop.y;
         const sw = image.naturalWidth * crop.w;
         const sh = image.naturalHeight * crop.h;
-        const size = screenToWorldSize(52 * pulse);
+        const size = screenToWorldSize((coin.kind === "special" ? 84 : 52) * pulse);
         ctx.save();
         ctx.beginPath();
-        ctx.arc(0, 0, size * 0.46, 0, Math.PI * 2);
+        ctx.arc(0, 0, size * (coin.kind === "special" ? 0.5 : 0.46), 0, Math.PI * 2);
         ctx.clip();
         ctx.drawImage(image, sx, sy, sw, sh, -size / 2, -size / 2, size, size);
         ctx.restore();
       } else {
-        const r = screenToWorldSize(18 * pulse);
-        ctx.fillStyle = coin.kind === "gold" ? "#f6bd2d" : "#3e9fe6";
+        const r = screenToWorldSize((coin.kind === "special" ? 32 : 18) * pulse);
+        ctx.fillStyle = coin.kind === "special" ? "#fff04a" : coin.kind === "gold" ? "#f6bd2d" : "#3e9fe6";
         ctx.strokeStyle = "rgba(255,255,255,0.8)";
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1398,6 +1444,32 @@
         ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255,0.48)";
         ellipse(-r * 0.28, -r * 0.25, r * 0.28, r * 0.18);
+      }
+      ctx.restore();
+    }
+
+    function drawSpecialCoinGlow(index, pulse) {
+      const now = performance.now();
+      const ring = screenToWorldSize(48 * pulse);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const glow = ctx.createRadialGradient(0, 0, ring * 0.12, 0, 0, ring * 1.25);
+      glow.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+      glow.addColorStop(0.38, "rgba(255, 230, 72, 0.52)");
+      glow.addColorStop(1, "rgba(255, 151, 42, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, ring * 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 10; i += 1) {
+        const angle = now / 420 + i * Math.PI * 0.2 + index;
+        const dist = screenToWorldSize(42 + Math.sin(now / 180 + i) * 8);
+        ctx.save();
+        ctx.translate(Math.cos(angle) * dist, Math.sin(angle) * dist);
+        ctx.rotate(angle);
+        ctx.fillStyle = i % 2 ? "#ffffff" : "#ffe04e";
+        drawStar(0, 0, screenToWorldSize(i % 2 ? 5 : 7));
+        ctx.restore();
       }
       ctx.restore();
     }
@@ -1454,10 +1526,13 @@
       run.popups.forEach((popup) => {
         const pp = worldToScreen(popup.x, popup.y);
         ctx.save();
-        ctx.globalAlpha = Math.max(0, popup.life / 0.75);
-        ctx.fillStyle = "#14577a";
-        ctx.font = "900 26px Trebuchet MS, Arial";
+        ctx.globalAlpha = Math.max(0, popup.life / (popup.maxLife || 0.75));
+        ctx.fillStyle = popup.special ? "#ffed4a" : "#14577a";
+        ctx.strokeStyle = "rgba(18,48,71,0.72)";
+        ctx.lineWidth = popup.special ? 5 : 0;
+        ctx.font = `900 ${popup.special ? 44 : 26}px Trebuchet MS, Arial`;
         ctx.textAlign = "center";
+        if (popup.special) ctx.strokeText(popup.text, pp.x, pp.y);
         ctx.fillText(popup.text, pp.x, pp.y);
         ctx.restore();
       });
@@ -1580,7 +1655,36 @@
         if (currentStage().windPattern !== "up" && run.windTimer <= 2) {
           drawWindWarning(run);
         }
+        drawSpecialScoreFlash(run);
       }
+    }
+
+    function drawSpecialScoreFlash(run) {
+      if (!run.specialFlash) return;
+      const flash = run.specialFlash;
+      const progress = 1 - flash.life / flash.maxLife;
+      const alpha = Math.max(0, Math.min(1, flash.life / flash.maxLife));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = `rgba(255, 238, 70, ${0.18 * alpha})`;
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      const size = Math.min(window.innerWidth * 0.22, window.innerHeight * 0.34) * (1 + Math.sin(progress * Math.PI) * 0.18);
+      ctx.font = `900 ${size}px Trebuchet MS, Arial`;
+      ctx.strokeStyle = "rgba(18,48,71,0.9)";
+      ctx.lineWidth = Math.max(8, size * 0.08);
+      ctx.strokeText(flash.text, window.innerWidth / 2, window.innerHeight / 2);
+      ctx.fillStyle = "#fff45c";
+      ctx.fillText(flash.text, window.innerWidth / 2, window.innerHeight / 2);
+      ctx.font = `900 ${Math.max(30, size * 0.22)}px Trebuchet MS, Arial`;
+      ctx.strokeStyle = "rgba(255, 112, 67, 0.85)";
+      ctx.lineWidth = 5;
+      ctx.strokeText("SPECIAL COIN!", window.innerWidth / 2, window.innerHeight / 2 + size * 0.48);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText("SPECIAL COIN!", window.innerWidth / 2, window.innerHeight / 2 + size * 0.48);
+      ctx.restore();
     }
 
     function drawWindWarning(run) {
@@ -1734,6 +1838,14 @@
       beep(base, 0.09, "triangle", 0.208);
       setTimeout(() => beep(base * 1.34, 0.08, "triangle", 0.182), 55);
       setTimeout(() => beep(base * 1.68, 0.07, "square", 0.104), 112);
+    }
+
+    function playSpecialCoinSound() {
+      [880, 1175, 1568, 2093, 2637].forEach((note, index) => {
+        setTimeout(() => beep(note, 0.16, index % 2 ? "triangle" : "square", 0.28), index * 48);
+      });
+      setTimeout(() => beep(1760, 0.34, "sine", 0.22), 260);
+      setTimeout(() => beep(440, 0.22, "sawtooth", 0.12), 300);
     }
 
     function fanfare() {
